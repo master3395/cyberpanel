@@ -35,29 +35,29 @@ Some PHP versions can be added to operating systems as third-party packages usin
 
 #### **Ubuntu**:
 - **Ubuntu 22.04**:
-  - Highest: PHP 8.3 (default repository or Ondrej's PPA).
+  - Highest: PHP 8.5 (default repository or Ondrej's PPA).
   - Lowest: PHP 7.4 (via Ondrej's PPA).
 - **Ubuntu 20.04**:
-  - Highest: PHP 8.3 (default repository or Ondrej's PPA).
+  - Highest: PHP 8.5 (default repository or Ondrej's PPA).
   - Lowest: PHP 7.0 (via Ondrej's PPA).
 - **Ubuntu 18.04**:
-  - Highest: PHP 8.2 (via Ondrej's PPA).
+  - Highest: PHP 8.4 (via Ondrej's PPA).
   - Lowest: PHP 5.6 (via Ondrej's PPA).
 
 #### **AlmaLinux**:
 - **AlmaLinux 9**:
-  - Highest: PHP 8.3 (default repository or Remi repository).
+  - Highest: PHP 8.5 (default repository or Remi repository).
   - Lowest: PHP 7.4 (via Remi repository).
 - **AlmaLinux 8**:
-  - Highest: PHP 8.3 (default repository or Remi repository).
+  - Highest: PHP 8.4 (default repository or Remi repository).
   - Lowest: PHP 5.6 (via Remi repository).
 
 #### **CentOS**:
 - **CentOS 9**:
-  - Highest: PHP 8.2 (via Remi repository).
+  - Highest: PHP 8.4 (via Remi repository).
   - Lowest: PHP 7.4 (via Remi repository).
 - **CentOS 8**:
-  - Highest: PHP 8.1 (via Remi repository).
+  - Highest: PHP 8.4 (via Remi repository).
   - Lowest: PHP 5.6 (via Remi repository).
 - **CentOS 7**:
   - Highest: PHP 8.0 (via Remi repository).
@@ -65,20 +65,20 @@ Some PHP versions can be added to operating systems as third-party packages usin
 
 #### **RHEL**:
 - **RHEL 9**:
-  - Highest: PHP 8.2 (via Remi repository).
+  - Highest: PHP 8.4 (via Remi repository).
   - Lowest: PHP 7.4 (via Remi repository).
 - **RHEL 8**:
-  - Highest: PHP 8.1 (via Remi repository).
+  - Highest: PHP 8.4 (via Remi repository).
   - Lowest: PHP 5.6 (via Remi repository).
 
 #### **RockyLinux**:
 - **RockyLinux 8**:
-  - Highest: PHP 8.3 (via Remi repository).
+  - Highest: PHP 8.5 (via Remi repository).
   - Lowest: PHP 5.6 (via Remi repository).
 
 #### **CloudLinux**:
 - **CloudLinux 8**:
-  - Highest: PHP 8.3 (via Remi repository).
+  - Highest: PHP 8.5 (via Remi repository).
   - Lowest: PHP 5.6 (via Remi repository).
 - **CloudLinux 7**:
   - Highest: PHP 8.0 (via Remi repository).
@@ -86,13 +86,15 @@ Some PHP versions can be added to operating systems as third-party packages usin
 
 #### **openEuler**:
 - **openEuler 22.03**:
-  - Highest: PHP 8.1 (default repository).
+  - Highest: PHP 8.4 (default repository).
   - Lowest: PHP 7.4 (default repository).
 - **openEuler 20.03**:
   - Highest: PHP 7.3 (default repository).
   - Lowest: PHP 7.0 (default repository).
 
 ### Full List of PHP Versions and End of Life (EOL) Dates:
+- ✨ **PHP 8.5** - EOL: 31 Dec 2028.
+- ✨ **PHP 8.4** - EOL: 31 Dec 2027.
 - ✨ **PHP 8.3** - EOL: 31 Dec 2027.
 - ✨ **PHP 8.2** - EOL: 31 Dec 2026.
 - ✨ **PHP 8.1** - EOL: 31 Dec 2025.
