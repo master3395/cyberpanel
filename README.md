@@ -114,29 +114,29 @@ Some PHP versions can be added to operating systems as third-party packages usin
 CyberPanel runs on x86_64 architecture and supports the following operating systems:
 
 ### **Ubuntu**:
-- Ubuntu 18.04 🛑 EOL: 31 May 2023.
-- Ubuntu 20.04 ✅ Supported until April 2025.
 - Ubuntu 22.04 ✅ Supported until April 2027.
+- Ubuntu 20.04 ✅ Supported until April 2025.
+- Ubuntu 18.04 🛑 EOL: 31 May 2023.
 
 ### **CentOS**:
-- CentOS 7 🛑 EOL: 30 June 2024.
-- CentOS 8 🛑 EOL: 31 Dec 2021.
 - CentOS 9 ✅ EOL: 31 May 2027.
+- CentOS 8 🛑 EOL: 31 Dec 2021.
+- CentOS 7 🛑 EOL: 30 June 2024.
 
 ### **RHEL**:
-- RHEL 8 ✅ EOL: 31 May 2029.
 - RHEL 9 ✅ EOL: 31 May 2032.
+- RHEL 8 ✅ EOL: 31 May 2029.
 
 ### **AlmaLinux**:
-- AlmaLinux 8 🛑 EOL: 1 May 2024.
 - AlmaLinux 9 ✅ EOL: 31 May 2027.
+- AlmaLinux 8 🛑 EOL: 1 May 2024.
 
 ### **Other OS**:
 - RockyLinux 8 ✅ EOL: 31 May 2029.
-- CloudLinux 7 🛑 EOL: 1 Jul 2024.
 - CloudLinux 8 ✅ EOL: 31 May 2029.
-- openEuler 20.03 🛑 EOL: April 2022.
+- CloudLinux 7 🛑 EOL: 1 Jul 2024.
 - openEuler 22.03 🛑 EOL: March 2024.
+- openEuler 20.03 🛑 EOL: April 2022.
 
 ---
 
