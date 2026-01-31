@@ -47,7 +47,7 @@ fi
 LOG_FILE="/var/log/installer.log"
 mkdir -p /var/log 2>/dev/null || true
 touch "$LOG_FILE" 2>/dev/null || true
-exec >>"$LOG_FILE" 2>&1
+exec > >(tee -a "$LOG_FILE") 2>&1
 echo -e "[$(date +"%Y-%m-%d %H:%M:%S")] Upgrade started: $0 $*"
 
 Set_Default_Variables() {

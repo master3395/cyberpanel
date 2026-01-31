@@ -37,7 +37,7 @@ fi
 LOG_FILE="/var/log/installer.log"
 mkdir -p /var/log 2>/dev/null || true
 touch "$LOG_FILE" 2>/dev/null || true
-exec >>"$LOG_FILE" 2>&1
+exec > >(tee -a "$LOG_FILE") 2>&1
 echo "[$(date +"%Y-%m-%d %H:%M:%S")] Installer started: $0 $*"
 
 # Determine branch from arguments or use default
