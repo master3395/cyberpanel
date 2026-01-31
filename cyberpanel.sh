@@ -760,8 +760,8 @@ install_cyberpanel_direct() {
     export TMP="$temp_dir"
     cd "$temp_dir" || return 1
     
-    # CRITICAL: Disable MariaDB 12.1 repository and add dnf exclude if MariaDB 10.x is installed
-    # This must be done BEFORE Pre_Install_Setup_Repository runs
+    # CRITICAL: Disable MariaDB 12.1 repository if MariaDB 10.x is installed
+    # Excluding MariaDB-server can break fresh reinstalls; only enable if explicitly requested.
     if command -v rpm >/dev/null 2>&1; then
         # Check if MariaDB 10.x is installed
         if rpm -qa | grep -qiE "^(mariadb-server|mysql-server|MariaDB-server)" 2>/dev/null; then
@@ -772,56 +772,17 @@ install_cyberpanel_direct() {
                 
                 # Check if it's MariaDB 10.x (major version < 12)
                 if [ "$major_ver" -lt 12 ]; then
-                    print_status "MariaDB $mariadb_version detected, adding dnf exclude to prevent upgrade attempts"
-                    
-                    # Add MariaDB-server to dnf excludes (multiple formats for compatibility)
-                    local dnf_conf="/etc/dnf/dnf.conf"
-                    local exclude_added=false
-                    
-                    if [ -f "$dnf_conf" ]; then
-                        # Check if [main] section exists
-                        if grep -q "^\[main\]" "$dnf_conf" 2>/dev/null; then
-                            # [main] section exists, add exclude there
-                            if ! grep -q "exclude=.*MariaDB-server" "$dnf_conf" 2>/dev/null; then
-                                if grep -q "^exclude=" "$dnf_conf" 2>/dev/null; then
-                                    # Append to existing exclude line in [main] section
-                                    sed -i '/^\[main\]/,/^\[/ { /^exclude=/ s/$/ MariaDB-server*/ }' "$dnf_conf"
-                                else
-                                    # Add new exclude line after [main]
-                                    sed -i '/^\[main\]/a exclude=MariaDB-server*' "$dnf_conf"
-                                fi
-                                exclude_added=true
-                            fi
-                        else
-                            # No [main] section, add it with exclude
-                            if ! grep -q "exclude=.*MariaDB-server" "$dnf_conf" 2>/dev/null; then
-                                echo "" >> "$dnf_conf"
-                                echo "[main]" >> "$dnf_conf"
-                                echo "exclude=MariaDB-server*" >> "$dnf_conf"
-                                exclude_added=true
-                            fi
+                    print_status "MariaDB $mariadb_version detected, disabling MariaDB 12.1 repos to prevent upgrade attempts"
+
+                    # Ensure MariaDB-server is not excluded unless explicitly requested
+                    if [ "${CYBERPANEL_EXCLUDE_MARIADB_SERVER:-0}" != "1" ]; then
+                        if [ -f /etc/dnf/dnf.conf ]; then
+                            sed -i 's/\s*MariaDB-server\*//g' /etc/dnf/dnf.conf 2>/dev/null || true
+                            sed -i 's/exclude=\s*$/# exclude=/' /etc/dnf/dnf.conf 2>/dev/null || true
                         fi
-                    else
-                        # Create dnf.conf with exclude
-                        echo "[main]" > "$dnf_conf"
-                        echo "exclude=MariaDB-server*" >> "$dnf_conf"
-                        exclude_added=true
-                    fi
-                    
-                    if [ "$exclude_added" = true ]; then
-                        print_status "Added MariaDB-server* to dnf excludes in $dnf_conf"
-                    fi
-                    
-                    # Also add to yum.conf for compatibility
-                    local yum_conf="/etc/yum.conf"
-                    if [ -f "$yum_conf" ]; then
-                        if ! grep -q "exclude=.*MariaDB-server" "$yum_conf" 2>/dev/null; then
-                            if grep -q "^exclude=" "$yum_conf" 2>/dev/null; then
-                                sed -i 's/^exclude=\(.*\)/exclude=\1 MariaDB-server*/' "$yum_conf"
-                            else
-                                echo "exclude=MariaDB-server*" >> "$yum_conf"
-                            fi
-                            print_status "Added MariaDB-server* to yum excludes"
+                        if [ -f /etc/yum.conf ]; then
+                            sed -i 's/\s*MariaDB-server\*//g' /etc/yum.conf 2>/dev/null || true
+                            sed -i 's/exclude=\s*$/# exclude=/' /etc/yum.conf 2>/dev/null || true
                         fi
                     fi
                     
@@ -943,8 +904,8 @@ except:
         return 1
     fi
     
-    # CRITICAL: Patch the installer script to skip MariaDB installation if 10.x is already installed
-    if [ -n "$MARIADB_VERSION" ] && [ "$major_ver" -lt 12 ] 2>/dev/null; then
+    # CRITICAL: Patch the installer script to skip MariaDB installation only if explicitly requested
+    if [ -n "$MARIADB_VERSION" ] && [ "$major_ver" -lt 12 ] 2>/dev/null && [ "${CYBERPANEL_EXCLUDE_MARIADB_SERVER:-0}" = "1" ]; then
         print_status "Patching installer script to skip MariaDB installation..."
         
         # Create a backup
@@ -1039,11 +1000,15 @@ except Exception as e:
         if [ -d "cyberpanel-stable" ]; then
             cp -r cyberpanel-stable/install . 2>/dev/null || true
             cp -r cyberpanel-stable/install.sh . 2>/dev/null || true
+            cp -r cyberpanel-stable/dns-one . 2>/dev/null || true
+            cp -r cyberpanel-stable/dns . 2>/dev/null || true
         fi
     else
         if [ -d "cyberpanel-v2.5.5-dev" ]; then
             cp -r cyberpanel-v2.5.5-dev/install . 2>/dev/null || true
             cp -r cyberpanel-v2.5.5-dev/install.sh . 2>/dev/null || true
+            cp -r cyberpanel-v2.5.5-dev/dns-one . 2>/dev/null || true
+            cp -r cyberpanel-v2.5.5-dev/dns . 2>/dev/null || true
         fi
     fi
 
@@ -1170,8 +1135,8 @@ PY
     if [ -f "$installer_py" ]; then
         print_status "Using install/install.py directly for installation (non-interactive mode)"
         
-        # CRITICAL: Patch install.py to exclude MariaDB-server from dnf/yum commands
-        if [ -n "$MARIADB_VERSION" ] && [ "$major_ver" -lt 12 ] 2>/dev/null; then
+        # CRITICAL: Patch install.py to exclude MariaDB-server only if explicitly requested
+        if [ -n "$MARIADB_VERSION" ] && [ "$major_ver" -lt 12 ] 2>/dev/null && [ "${CYBERPANEL_EXCLUDE_MARIADB_SERVER:-0}" = "1" ]; then
             print_status "Patching install.py to exclude MariaDB-server from installation commands..."
             
             # Create backup

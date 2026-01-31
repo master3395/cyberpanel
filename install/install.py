@@ -18,6 +18,10 @@ import secrets
 import install_utils
 
 TMP_BASE = os.environ.get("TMPDIR", "/tmp")
+try:
+    os.makedirs(TMP_BASE, exist_ok=True)
+except Exception:
+    pass
 
 VERSION = '2.4'
 BUILD = 4
@@ -1560,40 +1564,42 @@ module cyberpanel_ols {
                                     self.stdOut(f"Warning: Could not disable repository {repo_file}: {e}", 1)
                                     logging.InstallLog.writeToFile(f"Warning: Could not disable repository {repo_file}: {e}")
                         
-                        # Always exclude MariaDB-server from dnf/yum operations to prevent upgrades
-                        try:
-                            # Add exclude to dnf.conf
-                            dnf_conf = '/etc/dnf/dnf.conf'
-                            exclude_line = 'exclude=MariaDB-server'
-                            
-                            if os.path.exists(dnf_conf):
-                                with open(dnf_conf, 'r') as f:
-                                    dnf_content = f.read()
+                        # Optionally exclude MariaDB-server from dnf/yum operations to prevent upgrades
+                        # Disabled by default to avoid breaking fresh reinstalls
+                        if os.environ.get("CYBERPANEL_EXCLUDE_MARIADB_SERVER", "0") == "1":
+                            try:
+                                # Add exclude to dnf.conf
+                                dnf_conf = '/etc/dnf/dnf.conf'
+                                exclude_line = 'exclude=MariaDB-server'
                                 
-                                # Check if exclude line already exists
-                                if exclude_line not in dnf_content:
-                                    # Check if there's already an exclude line
-                                    if 'exclude=' in dnf_content:
-                                        # Append to existing exclude line
-                                        dnf_content = re.sub(r'(exclude=.*)', r'\1 MariaDB-server', dnf_content)
-                                    else:
-                                        # Add new exclude line
-                                        dnf_content = dnf_content.rstrip() + '\n' + exclude_line + '\n'
+                                if os.path.exists(dnf_conf):
+                                    with open(dnf_conf, 'r') as f:
+                                        dnf_content = f.read()
                                     
+                                    # Check if exclude line already exists
+                                    if exclude_line not in dnf_content:
+                                        # Check if there's already an exclude line
+                                        if 'exclude=' in dnf_content:
+                                            # Append to existing exclude line
+                                            dnf_content = re.sub(r'(exclude=.*)', r'\1 MariaDB-server', dnf_content)
+                                        else:
+                                            # Add new exclude line
+                                            dnf_content = dnf_content.rstrip() + '\n' + exclude_line + '\n'
+                                        
+                                        with open(dnf_conf, 'w') as f:
+                                            f.write(dnf_content)
+                                        self.stdOut("Added MariaDB-server to dnf excludes to prevent upgrade", 1)
+                                        logging.InstallLog.writeToFile("Added MariaDB-server to dnf excludes")
+                                else:
+                                    # Create dnf.conf with exclude
                                     with open(dnf_conf, 'w') as f:
-                                        f.write(dnf_content)
-                                    self.stdOut("Added MariaDB-server to dnf excludes to prevent upgrade", 1)
-                                    logging.InstallLog.writeToFile("Added MariaDB-server to dnf excludes")
-                            else:
-                                # Create dnf.conf with exclude
-                                with open(dnf_conf, 'w') as f:
-                                    f.write('[main]\n')
-                                    f.write(exclude_line + '\n')
-                                self.stdOut("Created dnf.conf with MariaDB-server exclude", 1)
-                                logging.InstallLog.writeToFile("Created dnf.conf with MariaDB-server exclude")
-                        except Exception as e:
-                            self.stdOut(f"Warning: Could not add exclude to dnf.conf: {e}", 1)
-                            logging.InstallLog.writeToFile(f"Warning: Could not add exclude to dnf.conf: {e}")
+                                        f.write('[main]\n')
+                                        f.write(exclude_line + '\n')
+                                    self.stdOut("Created dnf.conf with MariaDB-server exclude", 1)
+                                    logging.InstallLog.writeToFile("Created dnf.conf with MariaDB-server exclude")
+                            except Exception as e:
+                                self.stdOut(f"Warning: Could not add exclude to dnf.conf: {e}", 1)
+                                logging.InstallLog.writeToFile(f"Warning: Could not add exclude to dnf.conf: {e}")
                         
                         return True
                 except (ValueError, TypeError):
@@ -1764,7 +1770,12 @@ module cyberpanel_ols {
                             return True
                         else:
                             self.stdOut("⚠️  MariaDB 12.1 upgrade failed, using existing MariaDB installation", 1)
-                            self.startMariaDB()
+                            if not self.startMariaDB():
+                                self.stdOut("Existing MariaDB failed to start. Attempting repair install...", 1)
+                                if self.distro != ubuntu and os.environ.get("CYBERPANEL_EXCLUDE_MARIADB_SERVER", "0") != "1":
+                                    repair_cmd = "dnf install -y MariaDB-server MariaDB-client MariaDB-backup MariaDB-devel --allowerasing"
+                                    self.call(repair_cmd, self.distro, repair_cmd, repair_cmd, 1, 0, os.EX_OSERR, True)
+                                    self.startMariaDB()
                             return True
                     except Exception as upgrade_error:
                         error_msg = str(upgrade_error)
@@ -1779,13 +1790,23 @@ module cyberpanel_ols {
                             self.stdOut(f"Using existing MariaDB {installed_version} installation", 1)
                         
                         # Fall back to existing installation
-                        self.startMariaDB()
+                        if not self.startMariaDB():
+                            self.stdOut("Existing MariaDB failed to start. Attempting repair install...", 1)
+                            if self.distro != ubuntu and os.environ.get("CYBERPANEL_EXCLUDE_MARIADB_SERVER", "0") != "1":
+                                repair_cmd = "dnf install -y MariaDB-server MariaDB-client MariaDB-backup MariaDB-devel --allowerasing"
+                                self.call(repair_cmd, self.distro, repair_cmd, repair_cmd, 1, 0, os.EX_OSERR, True)
+                                self.startMariaDB()
                         return True
                 
                 # MariaDB 12.x or higher already installed, or version unknown but working
                 # Just ensure it's running
                 self.stdOut("Using existing MariaDB installation", 1)
-                self.startMariaDB()
+                if not self.startMariaDB():
+                    self.stdOut("Existing MariaDB failed to start. Attempting repair install...", 1)
+                    if self.distro != ubuntu and os.environ.get("CYBERPANEL_EXCLUDE_MARIADB_SERVER", "0") != "1":
+                        repair_cmd = "dnf install -y MariaDB-server MariaDB-client MariaDB-backup MariaDB-devel --allowerasing"
+                        self.call(repair_cmd, self.distro, repair_cmd, repair_cmd, 1, 0, os.EX_OSERR, True)
+                        self.startMariaDB()
                 return True
             
             self.stdOut("Installing MySQL/MariaDB...", 1)
