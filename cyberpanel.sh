@@ -915,13 +915,14 @@ except:
     fi
     
     # Download the working CyberPanel installation files
-    # Use master3395 fork which has our fixes
     # Try to download the actual installer script (install/install.py) from the repository
     echo "Downloading from: https://raw.githubusercontent.com/master3395/cyberpanel/v2.5.5-dev/cyberpanel.sh"
     
     # First, try to download the repository archive to get the correct installer
-    local archive_url="https://github.com/master3395/cyberpanel/archive/v2.5.5-dev.tar.gz"
-    local installer_url="https://raw.githubusercontent.com/master3395/cyberpanel/v2.5.5-dev/cyberpanel.sh"
+    local repo_owner="${CYBERPANEL_REPO_OWNER:-master3395}"
+    local repo_name="${CYBERPANEL_REPO_NAME:-cyberpanel}"
+    local archive_url="https://github.com/${repo_owner}/${repo_name}/archive/v2.5.5-dev.tar.gz"
+    local installer_url="https://raw.githubusercontent.com/${repo_owner}/${repo_name}/v2.5.5-dev/cyberpanel.sh"
     
     # Test if the development branch archive exists
     if curl -s --head "$archive_url" | grep -q "200 OK"; then
@@ -931,8 +932,8 @@ except:
         # Test if the installer script exists
         if ! curl -s --head "$installer_url" | grep -q "200 OK"; then
             echo "    Development branch not available, falling back to stable"
-            installer_url="https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh"
-            archive_url="https://github.com/master3395/cyberpanel/archive/stable.tar.gz"
+            installer_url="https://raw.githubusercontent.com/${repo_owner}/${repo_name}/stable/cyberpanel.sh"
+            archive_url="https://github.com/${repo_owner}/${repo_name}/archive/stable.tar.gz"
         fi
     fi
     
@@ -1015,9 +1016,9 @@ except Exception as e:
     
     # Download the install directory
     echo "Downloading installation files..."
-    local archive_url="https://github.com/master3395/cyberpanel/archive/v2.5.5-dev.tar.gz"
-    if [ "$installer_url" = "https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh" ]; then
-        archive_url="https://github.com/master3395/cyberpanel/archive/stable.tar.gz"
+    local archive_url="https://github.com/${repo_owner}/${repo_name}/archive/v2.5.5-dev.tar.gz"
+    if [ "$installer_url" = "https://raw.githubusercontent.com/${repo_owner}/${repo_name}/stable/cyberpanel.sh" ]; then
+        archive_url="https://github.com/${repo_owner}/${repo_name}/archive/stable.tar.gz"
     fi
     
     curl --silent -L -o install_files.tar.gz "$archive_url" 2>/dev/null
@@ -1034,7 +1035,7 @@ except Exception as e:
     fi
     
     # Copy install directory to current location
-    if [ "$installer_url" = "https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh" ]; then
+    if [ "$installer_url" = "https://raw.githubusercontent.com/${repo_owner}/${repo_name}/stable/cyberpanel.sh" ]; then
         if [ -d "cyberpanel-stable" ]; then
             cp -r cyberpanel-stable/install . 2>/dev/null || true
             cp -r cyberpanel-stable/install.sh . 2>/dev/null || true
@@ -1044,6 +1045,15 @@ except Exception as e:
             cp -r cyberpanel-v2.5.5-dev/install . 2>/dev/null || true
             cp -r cyberpanel-v2.5.5-dev/install.sh . 2>/dev/null || true
         fi
+    fi
+
+    # TEMP: Ensure Python installer files come from the same pushed branch
+    # Derive raw base URL from installer_url and refresh install/*.py
+    local raw_base=""
+    raw_base=$(echo "$installer_url" | sed -E 's#/cyberpanel\.sh$##')
+    if [ -n "$raw_base" ] && [ -d "install" ]; then
+        curl -sS "${raw_base}/install/install.py" -o install/install.py 2>/dev/null || true
+        curl -sS "${raw_base}/install/install_utils.py" -o install/install_utils.py 2>/dev/null || true
     fi
     
     # Verify install directory was copied
