@@ -15,6 +15,37 @@ DEBUG_MODE=false
 AUTO_INSTALL=false
 INSTALLATION_TYPE=""
 
+resolve_script_path() {
+    local candidate=""
+
+    if [ -n "$CYBERPANEL_SCRIPT_PATH" ] && [ -f "$CYBERPANEL_SCRIPT_PATH" ]; then
+        echo "$CYBERPANEL_SCRIPT_PATH"
+        return 0
+    fi
+
+    if [ -n "${BASH_SOURCE[0]}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+        candidate="${BASH_SOURCE[0]}"
+    elif [ -f "$0" ]; then
+        candidate="$0"
+    elif [ -f "./cyberpanel.sh" ]; then
+        candidate="./cyberpanel.sh"
+    elif [ -f "/workspaces/cyberpanel/cyberpanel.sh" ]; then
+        candidate="/workspaces/cyberpanel/cyberpanel.sh"
+    fi
+
+    if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+        # Prefer absolute path
+        if command -v realpath >/dev/null 2>&1; then
+            realpath "$candidate"
+        else
+            (cd "$(dirname "$candidate")" && pwd)/"$(basename "$candidate")"
+        fi
+        return 0
+    fi
+
+    return 1
+}
+
 # Require elevated permissions (auto-elevate)
 require_root() {
     if [ "$(id -u)" -eq 0 ]; then
@@ -27,10 +58,21 @@ require_root() {
         exit 1
     fi
 
+    local script_path=""
+    if script_path="$(resolve_script_path)"; then
+        export CYBERPANEL_SCRIPT_PATH="$script_path"
+    fi
+
     for elevate in sudo doas run0 pkexec; do
         if command -v "$elevate" >/dev/null 2>&1; then
             echo "Elevating with $elevate"
-            CYBERPANEL_ELEVATED=1 "$elevate" env "XDG_CONFIG_HOME=$XDG_CONFIG_HOME" "SUDO_USER=$(whoami)" "$0" "$@"
+            if [ -n "$CYBERPANEL_SCRIPT_PATH" ] && [ -f "$CYBERPANEL_SCRIPT_PATH" ]; then
+                CYBERPANEL_ELEVATED=1 "$elevate" env "XDG_CONFIG_HOME=$XDG_CONFIG_HOME" "SUDO_USER=$(whoami)" "$CYBERPANEL_SCRIPT_PATH" "$@"
+            else
+                echo "ERROR: Could not resolve script path for elevation."
+                echo "Please run: sudo /path/to/cyberpanel.sh [args...]"
+                exit 1
+            fi
             exit $?
         fi
     done
