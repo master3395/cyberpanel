@@ -15,13 +15,28 @@ DEBUG_MODE=false
 AUTO_INSTALL=false
 INSTALLATION_TYPE=""
 
-# Require elevated permissions
+# Require elevated permissions (auto-elevate)
 require_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        echo "ERROR: This installer must be run with elevated privileges."
-        echo "Please re-run as root or with sudo."
+    if [ "$(id -u)" -eq 0 ]; then
+        return 0
+    fi
+
+    # Prevent infinite recursion
+    if [ -n "$CYBERPANEL_ELEVATED" ]; then
+        echo "ERROR: Failed to elevate privileges."
         exit 1
     fi
+
+    for elevate in sudo doas run0 pkexec; do
+        if command -v "$elevate" >/dev/null 2>&1; then
+            echo "Elevating with $elevate"
+            CYBERPANEL_ELEVATED=1 "$elevate" env "XDG_CONFIG_HOME=$XDG_CONFIG_HOME" "SUDO_USER=$(whoami)" "$0" "$@"
+            exit $?
+        fi
+    done
+
+    echo "Please install sudo, doas, run0 (systemd), or pkexec (polkit) to continue."
+    exit 1
 }
 
 # Base temp directory (avoid /tmp)
@@ -2916,7 +2931,7 @@ create_standard_aliases() {
 
 # Main installation function
 main() {
-    require_root
+    require_root "$@"
     # Initialize log directory and file
     mkdir -p "/var/log/CyberPanel"
     touch "/var/log/CyberPanel/install.log"
