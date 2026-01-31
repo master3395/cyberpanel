@@ -15,6 +15,18 @@ DEBUG_MODE=false
 AUTO_INSTALL=false
 INSTALLATION_TYPE=""
 
+# Require elevated permissions
+require_root() {
+    if [ "$(id -u)" -ne 0 ]; then
+        echo "ERROR: This installer must be run with elevated privileges."
+        echo "Please re-run as root or with sudo."
+        exit 1
+    fi
+}
+
+# Base temp directory (avoid /tmp)
+TEMP_BASE="${HOME}/.cyberpanel_tmp"
+
 # Logging function
 log_message() {
     # Ensure log directory exists
@@ -145,6 +157,65 @@ detect_os() {
     return 0
 }
 
+# Ensure mysql CLI is available (or provide a compatible wrapper)
+ensure_mysql_command() {
+    if command -v mysql >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if command -v mariadb >/dev/null 2>&1; then
+        ln -sf "$(command -v mariadb)" /usr/local/bin/mysql 2>/dev/null || true
+        return 0
+    fi
+
+    if [ "$OS_FAMILY" = "rhel" ]; then
+        if command -v dnf >/dev/null 2>&1; then
+            dnf install -y mariadb >/dev/null 2>&1 || dnf install -y MariaDB-client >/dev/null 2>&1 || true
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y mariadb >/dev/null 2>&1 || yum install -y MariaDB-client >/dev/null 2>&1 || true
+        fi
+    elif [ "$OS_FAMILY" = "debian" ]; then
+        apt-get update -y >/dev/null 2>&1 || true
+        apt-get install -y mariadb-client >/dev/null 2>&1 || true
+    fi
+
+    if command -v mysql >/dev/null 2>&1; then
+        return 0
+    fi
+
+    if command -v mariadb >/dev/null 2>&1; then
+        ln -sf "$(command -v mariadb)" /usr/local/bin/mysql 2>/dev/null || true
+    fi
+}
+
+# Remove MariaDB compat packages that conflict with MariaDB 10.x installs
+remove_mariadb_compat_packages() {
+    if command -v rpm >/dev/null 2>&1 && rpm -qa | grep -qiE "MariaDB-server-compat|mariadb-server-compat"; then
+        print_status "Removing MariaDB-server-compat packages to avoid conflicts..."
+        if command -v dnf >/dev/null 2>&1; then
+            dnf remove -y "MariaDB-server-compat*" "mariadb-server-compat*" >/dev/null 2>&1 || true
+        elif command -v yum >/dev/null 2>&1; then
+            yum remove -y "MariaDB-server-compat*" "mariadb-server-compat*" >/dev/null 2>&1 || true
+        fi
+    fi
+}
+
+# Ensure OpenLiteSpeed binaries exist (lswsctrl/openlitespeed)
+ensure_openlitespeed_binaries() {
+    if [ ! -x "/usr/local/lsws/bin/lswsctrl" ]; then
+        echo "  • OpenLiteSpeed binaries missing, attempting reinstall..."
+        if command -v dnf >/dev/null 2>&1; then
+            dnf install -y openlitespeed >/dev/null 2>&1 || true
+        elif command -v yum >/dev/null 2>&1; then
+            yum install -y openlitespeed >/dev/null 2>&1 || true
+        fi
+    fi
+
+    if [ -x "/usr/local/lsws/bin/lshttpd" ] && [ ! -x "/usr/local/lsws/bin/openlitespeed" ]; then
+        ln -sf "/usr/local/lsws/bin/lshttpd" "/usr/local/lsws/bin/openlitespeed" 2>/dev/null || true
+    fi
+}
+
 # Function to fix static file permissions (critical for LiteSpeed)
 fix_static_file_permissions() {
     echo "  🔧 Fixing static file permissions for web server access..."
@@ -198,6 +269,7 @@ fix_post_install_issues() {
     
     # Start and enable LiteSpeed if not running
     if ! systemctl is-active --quiet lsws; then
+        ensure_openlitespeed_binaries
         echo "    Starting LiteSpeed service..."
         systemctl start lsws
         systemctl enable lsws
@@ -206,6 +278,7 @@ fix_post_install_issues() {
     
     # Fix database user permissions
     echo "    Fixing database user permissions..."
+    ensure_mysql_command
     
     # Wait for MariaDB to be ready
     local retry_count=0
@@ -609,9 +682,25 @@ install_cyberpanel_direct() {
     systemctl enable mariadb 2>/dev/null || true
     systemctl enable lsws 2>/dev/null || true
     
-    # Create temporary directory for installation
-    local temp_dir="/tmp/cyberpanel_install_$$"
-    mkdir -p "$temp_dir"
+    # Remove MariaDB compat packages that cause conflicts
+    remove_mariadb_compat_packages
+
+    # Ensure mysql CLI is available (or provide a compatible wrapper)
+    ensure_mysql_command
+
+    # Pre-create OpenLiteSpeed directories to avoid custom binary install failures
+    mkdir -p /usr/local/lsws/bin /usr/local/lsws/modules 2>/dev/null || true
+    chmod 755 /usr/local/lsws /usr/local/lsws/bin 2>/dev/null || true
+
+    # Create temporary directory for installation (avoid /tmp)
+    local temp_dir
+    mkdir -p "$TEMP_BASE" 2>/dev/null || true
+    temp_dir="${TEMP_BASE}/install_$$"
+    rm -rf "$temp_dir" 2>/dev/null || true
+    mkdir -p "$temp_dir" 2>/dev/null || true
+    export TMPDIR="$temp_dir"
+    export TEMP="$temp_dir"
+    export TMP="$temp_dir"
     cd "$temp_dir" || return 1
     
     # CRITICAL: Disable MariaDB 12.1 repository and add dnf exclude if MariaDB 10.x is installed
@@ -753,7 +842,7 @@ except:
                     
                     # Also set up a background process to monitor and disable repos
                     (
-                        while [ ! -f /tmp/cyberpanel_install_complete ]; do
+                        while [ ! -f "$TEMP_BASE/cyberpanel_install_complete" ]; do
                             sleep 2
                             if [ -f /etc/yum.repos.d/mariadb-main.repo ] || [ -f /etc/yum.repos.d/mariadb.repo ]; then
                                 disable_mariadb_repos
@@ -761,7 +850,7 @@ except:
                         done
                     ) &
                     local monitor_pid=$!
-                    echo "$monitor_pid" > /tmp/cyberpanel_repo_monitor.pid
+                    echo "$monitor_pid" > "$TEMP_BASE/cyberpanel_repo_monitor.pid"
                     print_status "Started background process to monitor and disable MariaDB repositories"
                 fi
             fi
@@ -909,6 +998,67 @@ except Exception as e:
     fi
     
     print_status "Verified install directory exists"
+
+    # Patch install_utils.py to handle shell metacharacters and mysql commands safely
+    if [ -f "install/install_utils.py" ]; then
+        python3 - << 'PY' 2>/dev/null || true
+from pathlib import Path
+import re
+
+p = Path("install/install_utils.py")
+try:
+    text = p.read_text()
+except Exception:
+    raise SystemExit(0)
+
+if "CRITICAL: Use shell=True for commands with shell metacharacters" not in text:
+    snippet = """
+    # CRITICAL: Use shell=True for commands with shell metacharacters
+    # Avoids "No matching repo to modify: 2>/dev/null, true, ||" when shlex.split splits them
+    if not shell and any(x in command for x in (' || ', ' 2>/dev', ' 2>', ' | ', '; true', '|| true')):
+        shell = True
+
+    # CRITICAL: For mysql/mariadb commands, always use shell=True and full binary path
+    # This fixes "No such file or directory: 'mysql'" when run via shlex.split
+    if not shell and ('mysql' in command or 'mariadb' in command):
+        import re
+        mysql_bin = '/usr/bin/mariadb' if os.path.exists('/usr/bin/mariadb') else '/usr/bin/mysql'
+        if not os.path.exists(mysql_bin):
+            mysql_bin = '/usr/bin/mysql'
+        # Replace only leading "mysql" or "mariadb" (executable), not "mysql" in SQL like "use mysql;"
+        if re.match(r'^\\s*(sudo\\s+)?(mysql|mariadb)\\s', command):
+            command = re.sub(r'^(\\s*)(?:sudo\\s+)?(mysql|mariadb)(\\s)', r'\\g<1>' + mysql_bin + r'\\g<3>', command, count=1)
+        shell = True
+"""
+    pattern = r"(if 'apt-get' in command or 'apt ' in command:[\\s\\S]+?return False\\n)"
+    m = re.search(pattern, text)
+    if m:
+        insert_at = m.end()
+        text = text[:insert_at] + "\\n" + snippet + "\\n" + text[insert_at:]
+        p.write_text(text)
+PY
+    fi
+
+    # Patch install.py to avoid hardcoded /tmp paths
+    if [ -f "install/install.py" ]; then
+        python3 - << 'PY' 2>/dev/null || true
+from pathlib import Path
+import re
+
+p = Path("install/install.py")
+try:
+    text = p.read_text()
+except Exception:
+    raise SystemExit(0)
+
+if 'tmp_binary = "/tmp/openlitespeed-custom"' in text:
+    text = text.replace(
+        'tmp_binary = "/tmp/openlitespeed-custom"\\n            tmp_module = "/tmp/cyberpanel_ols.so"\\n',
+        'tmp_base = os.environ.get("TMPDIR", "/tmp")\\n            tmp_binary = f"{tmp_base}/openlitespeed-custom"\\n            tmp_module = f"{tmp_base}/cyberpanel_ols.so"\\n'
+    )
+    p.write_text(text)
+PY
+    fi
     
     echo "  ✓ CyberPanel installation files downloaded"
     echo "  🔄 Starting CyberPanel installation..."
@@ -1016,7 +1166,7 @@ except Exception as e:
         fi
         
         # If MariaDB 10.x is installed, disable repositories right before running installer
-        if [ -n "$MARIADB_VERSION" ] && [ -f /tmp/cyberpanel_repo_monitor.pid ]; then
+        if [ -n "$MARIADB_VERSION" ] && [ -f "$TEMP_BASE/cyberpanel_repo_monitor.pid" ]; then
             # Call the disable function one more time before installer runs
             if type disable_mariadb_repos >/dev/null 2>&1; then
                 disable_mariadb_repos
@@ -1216,7 +1366,7 @@ except Exception as e:
         fi
         
         # If MariaDB 10.x is installed, disable repositories right before running installer
-        if [ -n "$MARIADB_VERSION" ] && [ -f /tmp/cyberpanel_repo_monitor.pid ]; then
+        if [ -n "$MARIADB_VERSION" ] && [ -f "$TEMP_BASE/cyberpanel_repo_monitor.pid" ]; then
             # Call the disable function one more time before installer runs
             if type disable_mariadb_repos >/dev/null 2>&1; then
                 disable_mariadb_repos
@@ -1233,14 +1383,14 @@ except Exception as e:
     local install_exit_code=${PIPESTATUS[0]}
     
     # Stop the repository monitor
-    if [ -f /tmp/cyberpanel_repo_monitor.pid ]; then
-        local monitor_pid=$(cat /tmp/cyberpanel_repo_monitor.pid 2>/dev/null)
+    if [ -f "$TEMP_BASE/cyberpanel_repo_monitor.pid" ]; then
+        local monitor_pid=$(cat "$TEMP_BASE/cyberpanel_repo_monitor.pid" 2>/dev/null)
         if [ -n "$monitor_pid" ] && kill -0 "$monitor_pid" 2>/dev/null; then
             kill "$monitor_pid" 2>/dev/null
         fi
-        rm -f /tmp/cyberpanel_repo_monitor.pid
+        rm -f "$TEMP_BASE/cyberpanel_repo_monitor.pid"
     fi
-    touch /tmp/cyberpanel_install_complete 2>/dev/null || true
+    touch "$TEMP_BASE/cyberpanel_install_complete" 2>/dev/null || true
 
     local install_exit_code=${PIPESTATUS[0]}
 
@@ -1273,7 +1423,7 @@ except Exception as e:
     fi
     
     # Clean up temporary directory
-    cd /tmp
+    cd "$TEMP_BASE" 2>/dev/null || cd /
     rm -rf "$temp_dir" 2>/dev/null || true
     
     # Check if installation was successful
@@ -1349,10 +1499,12 @@ apply_fixes() {
     fi
 
     # Fix database issues
+    ensure_mysql_command
     systemctl start mariadb 2>/dev/null || true
     systemctl enable mariadb 2>/dev/null || true
 
     # Fix LiteSpeed service
+    ensure_openlitespeed_binaries
     cat > /etc/systemd/system/lsws.service << 'EOF'
 [Unit]
 Description=LiteSpeed Web Server
@@ -2196,7 +2348,7 @@ show_clean_menu() {
     read -r response
     case $response in
         [yY]|[yY][eE][sS])
-            rm -rf /tmp/cyberpanel_*
+            rm -rf "$TEMP_BASE"/cyberpanel_*
             rm -rf /var/log/cyberpanel_install.log
             echo "SUCCESS: Cleanup complete! Temporary files and logs have been removed."
             ;;
@@ -2764,6 +2916,7 @@ create_standard_aliases() {
 
 # Main installation function
 main() {
+    require_root
     # Initialize log directory and file
     mkdir -p "/var/log/CyberPanel"
     touch "/var/log/CyberPanel/install.log"
