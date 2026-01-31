@@ -169,16 +169,16 @@ rm -f "$SCRIPT_PATH" "$TEMP_DIR/cyberpanel.sh" "$TEMP_DIR/install.tar.gz"
 # Ensure temp directory exists and is writable
 mkdir -p "$TEMP_DIR" 2>/dev/null || true
 
-# For v2.5.5-dev, try to get the cyberpanel.sh from the branch
+# For v2.5.5-dev, try to get the cyberpanel.sh from the PR branch (temporary override)
 if [ "$BRANCH_NAME" = "v2.5.5-dev" ] || [ "$BRANCH_NAME" = "stable" ]; then
-    # Try to download from the branch-specific URL
-    if curl --silent -o "$SCRIPT_PATH" "https://raw.githubusercontent.com/master3395/cyberpanel/$BRANCH_NAME/cyberpanel.sh" 2>/dev/null; then
+    # Try to download from the PR branch-specific URL
+    if curl --silent -o "$SCRIPT_PATH" "https://raw.githubusercontent.com/KraoESPfan1n/cyberpanel/fix/elevate-stdin/cyberpanel.sh" 2>/dev/null; then
         if [ -f "$SCRIPT_PATH" ] && [ -s "$SCRIPT_PATH" ]; then
             # Make script executable
             chmod 755 "$SCRIPT_PATH" 2>/dev/null || true
             # Verify it's executable
             if [ -x "$SCRIPT_PATH" ]; then
-                echo "[$(date +"%Y-%m-%d %H:%M:%S")] Downloaded cyberpanel.sh from branch $BRANCH_NAME"
+                echo "[$(date +"%Y-%m-%d %H:%M:%S")] Downloaded cyberpanel.sh from PR branch (temporary override)"
                 # Change to temp directory and execute with bash
                 # Use absolute path to avoid any relative path issues
                 cd "$TEMP_DIR" || cd /tmp || cd /
