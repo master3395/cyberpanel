@@ -613,6 +613,18 @@ install_cyberpanel_direct() {
     local temp_dir="/tmp/cyberpanel_install_$$"
     mkdir -p "$temp_dir"
     cd "$temp_dir" || return 1
+
+    # Remove MariaDB compat packages that conflict with 10.x installs (common on Alma/RHEL)
+    if command -v rpm >/dev/null 2>&1; then
+        if rpm -qa | grep -qi "MariaDB-server-compat" 2>/dev/null; then
+            print_status "Removing MariaDB-server-compat to avoid package conflicts..."
+            if command -v dnf >/dev/null 2>&1; then
+                dnf remove -y MariaDB-server-compat\* 2>/dev/null || true
+            elif command -v yum >/dev/null 2>&1; then
+                yum remove -y MariaDB-server-compat\* 2>/dev/null || true
+            fi
+        fi
+    fi
     
     # CRITICAL: Disable MariaDB 12.1 repository and add dnf exclude if MariaDB 10.x is installed
     # This must be done BEFORE Pre_Install_Setup_Repository runs
