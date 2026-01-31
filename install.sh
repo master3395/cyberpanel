@@ -14,8 +14,8 @@ pick_tmp_dir() {
     return 1
 }
 
-# Ensure we are running under bash (sh <(curl ...) uses /bin/sh)
-if [ -z "${BASH_VERSION:-}" ]; then
+# Ensure we are running under full bash (sh <(curl ...) can invoke bash in POSIX mode)
+if [ -z "${BASH_VERSION:-}" ] || ( command -v shopt >/dev/null 2>&1 && shopt -qo posix ); then
     TMP_BASE="$(pick_tmp_dir)"
     if [ -n "$TMP_BASE" ]; then
         TMP_SCRIPT="$TMP_BASE/cyberpanel-installer-$$.sh"
