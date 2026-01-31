@@ -102,63 +102,57 @@ check_disk_space
 # Download and execute cyberpanel.sh for the specified branch
 echo "Downloading CyberPanel installer for branch: $BRANCH_NAME"
 
-# Use absolute path for downloaded script in a writable directory
-TEMP_DIR="/tmp"
-SCRIPT_PATH="$TEMP_DIR/cyberpanel-$$.sh"
-rm -f "$SCRIPT_PATH" "$TEMP_DIR/cyberpanel.sh" "$TEMP_DIR/install.tar.gz"
+# Use HOME because some distros have /tmp mounted noexec
+SCRIPT_PATH=$(mktemp --tmpdir="$HOME" cyberpanel.XXXXXX)
+trap 'rm -f "$SCRIPT_PATH"' EXIT
 
-# Ensure temp directory exists and is writable
-mkdir -p "$TEMP_DIR" 2>/dev/null || true
+echo "Downloading installer..."
 
-# For v2.5.5-dev, try to get the cyberpanel.sh from the branch
+download_ok=0
+
+# For v2.5.5-dev and stable, try the branch-specific URL first
 if [ "$BRANCH_NAME" = "v2.5.5-dev" ] || [ "$BRANCH_NAME" = "stable" ]; then
-    # Try to download from the branch-specific URL
-    if curl --silent -o "$SCRIPT_PATH" "https://raw.githubusercontent.com/master3395/cyberpanel/$BRANCH_NAME/cyberpanel.sh" 2>/dev/null; then
-        if [ -f "$SCRIPT_PATH" ] && [ -s "$SCRIPT_PATH" ]; then
-            # Make script executable
-            chmod 755 "$SCRIPT_PATH" 2>/dev/null || true
-            # Verify it's executable
-            if [ -x "$SCRIPT_PATH" ]; then
-                echo "✅ Downloaded cyberpanel.sh from branch $BRANCH_NAME"
-                # Change to temp directory and execute with bash
-                # Use absolute path to avoid any relative path issues
-                cd "$TEMP_DIR" || cd /tmp || cd /
-                bash "$SCRIPT_PATH" "$@"
-                exit $?
-            else
-                echo "⚠️  Warning: Could not make script executable, trying alternative method..."
-                cd "$TEMP_DIR" || cd /tmp || cd /
-                bash -c "bash '$SCRIPT_PATH' $*"
-                exit $?
-            fi
-        fi
+    if curl -sS "https://raw.githubusercontent.com/master3395/cyberpanel/$BRANCH_NAME/cyberpanel.sh" \
+        --output "$SCRIPT_PATH" \
+        --location \
+        --fail; then
+        download_ok=1
+        echo "✅ Downloaded cyberpanel.sh from branch $BRANCH_NAME"
     fi
 fi
 
 # Fallback to standard cyberpanel.sh download
-if curl --silent -o "$SCRIPT_PATH" "https://cyberpanel.sh/?dl&$SERVER_OS" 2>/dev/null || \
-   wget -q -O "$SCRIPT_PATH" "https://cyberpanel.sh/?dl&$SERVER_OS" 2>/dev/null; then
-    if [ -f "$SCRIPT_PATH" ] && [ -s "$SCRIPT_PATH" ]; then
-        # Make script executable
-        chmod 755 "$SCRIPT_PATH" 2>/dev/null || true
-        # Verify it's executable
-        if [ -x "$SCRIPT_PATH" ]; then
-            echo "✅ Downloaded cyberpanel.sh from standard source"
-            # Change to temp directory and execute with bash
-            # Use absolute path to avoid any relative path issues
-            cd "$TEMP_DIR" || cd /tmp || cd /
-            bash "$SCRIPT_PATH" "$@"
-            exit $?
-        else
-            echo "⚠️  Warning: Could not make script executable, trying alternative method..."
-            cd "$TEMP_DIR" || cd /tmp || cd /
-            bash -c "bash '$SCRIPT_PATH' $*"
-            exit $?
-        fi
+if [ "$download_ok" -eq 0 ]; then
+    if curl -sS "https://cyberpanel.sh/?dl&$SERVER_OS" \
+        --output "$SCRIPT_PATH" \
+        --location \
+        --fail; then
+        download_ok=1
+        echo "✅ Downloaded cyberpanel.sh from standard source"
     fi
 fi
 
-# If we get here, download failed
-echo "❌ Failed to download cyberpanel.sh"
-echo "Please check your internet connection and try again"
+if [ "$download_ok" -eq 0 ]; then
+    echo "❌ Failed to download cyberpanel.sh"
+    echo "Please check your internet connection and try again"
+    exit 1
+fi
+
+chmod +x "$SCRIPT_PATH" 2>/dev/null || true
+
+# If already root, run directly
+if [ "$(id -u)" -eq 0 ]; then
+    "$SCRIPT_PATH" "$@"
+    exit $?
+fi
+
+for elevate in sudo doas run0 pkexec; do
+    if command -v "$elevate" >/dev/null 2>&1; then
+        echo "Elevating with $elevate"
+        "$elevate" env "XDG_CONFIG_HOME=$XDG_CONFIG_HOME" "SUDO_USER=$(whoami)" "$SCRIPT_PATH" "$@"
+        exit $?
+    fi
+done
+
+echo "Please install sudo, doas, run0 (systemd), or pkexec (polkit) to continue."
 exit 1
