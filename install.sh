@@ -3,16 +3,23 @@
 # CyberPanel v2.5.5-dev Installer
 # Simplified approach similar to stable branch
 
-# Logging setup
-LOG_FILE="/var/log/installer.log"
-mkdir -p /var/log 2>/dev/null || true
-touch "$LOG_FILE" 2>/dev/null || true
-exec >>"$LOG_FILE" 2>&1
-echo "[$(date +"%Y-%m-%d %H:%M:%S")] Installer started: $0 $*"
-
 # Re-exec with elevation if not running as root
 if [ "$(id -u)" -ne 0 ]; then
     SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+    if [ ! -f "$SCRIPT_PATH" ] || [ ! -r "$SCRIPT_PATH" ]; then
+        case "$SCRIPT_PATH" in
+            /dev/fd/*|/proc/*/fd/*)
+                TMP_SCRIPT="/tmp/cyberpanel-installer-$$.sh"
+                if [ -r "/proc/$$/fd/0" ]; then
+                    cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+                else
+                    cat "/dev/fd/0" > "$TMP_SCRIPT"
+                fi
+                chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
+                SCRIPT_PATH="$TMP_SCRIPT"
+                ;;
+        esac
+    fi
     for elevate in sudo doas run0 pkexec; do
         if command -v "$elevate" >/dev/null 2>&1; then
             echo "[$(date +"%Y-%m-%d %H:%M:%S")] Elevating with $elevate"
@@ -25,6 +32,13 @@ if [ "$(id -u)" -ne 0 ]; then
     echo "Please install sudo, doas, run0 (systemd), or pkexec (polkit) to continue."
     exit 1
 fi
+
+# Logging setup (requires root)
+LOG_FILE="/var/log/installer.log"
+mkdir -p /var/log 2>/dev/null || true
+touch "$LOG_FILE" 2>/dev/null || true
+exec >>"$LOG_FILE" 2>&1
+echo "[$(date +"%Y-%m-%d %H:%M:%S")] Installer started: $0 $*"
 
 # Determine branch from arguments or use default
 BRANCH_NAME="v2.5.5-dev"
