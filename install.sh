@@ -161,6 +161,19 @@ check_disk_space
 # Download and execute cyberpanel.sh for the specified branch
 echo "[$(date +"%Y-%m-%d %H:%M:%S")] Downloading CyberPanel installer for branch: $BRANCH_NAME"
 
+# Download helper
+download_script() {
+    local url="$1"
+    local out="$2"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL -o "$out" "$url" 2>/dev/null && return 0
+    fi
+    if command -v wget >/dev/null 2>&1; then
+        wget -q -O "$out" "$url" 2>/dev/null && return 0
+    fi
+    return 1
+}
+
 # Use absolute path for downloaded script in a writable directory
 TEMP_DIR="/tmp"
 SCRIPT_PATH="$TEMP_DIR/cyberpanel-$$.sh"
@@ -172,7 +185,7 @@ mkdir -p "$TEMP_DIR" 2>/dev/null || true
 # For v2.5.5-dev, try to get the cyberpanel.sh from the PR branch (temporary override)
 if [ "$BRANCH_NAME" = "v2.5.5-dev" ] || [ "$BRANCH_NAME" = "stable" ]; then
     # Try to download from the PR branch-specific URL
-    if curl --silent -o "$SCRIPT_PATH" "https://raw.githubusercontent.com/KraoESPfan1n/cyberpanel/fix/elevate-stdin/cyberpanel.sh" 2>/dev/null; then
+    if download_script "https://raw.githubusercontent.com/KraoESPfan1n/cyberpanel/fix/elevate-stdin/cyberpanel.sh" "$SCRIPT_PATH"; then
         if [ -f "$SCRIPT_PATH" ] && [ -s "$SCRIPT_PATH" ]; then
             # Make script executable
             chmod 755 "$SCRIPT_PATH" 2>/dev/null || true
@@ -196,8 +209,7 @@ if [ "$BRANCH_NAME" = "v2.5.5-dev" ] || [ "$BRANCH_NAME" = "stable" ]; then
 fi
 
 # Fallback to standard cyberpanel.sh download
-if curl --silent -o "$SCRIPT_PATH" "https://cyberpanel.sh/?dl&$SERVER_OS" 2>/dev/null || \
-   wget -q -O "$SCRIPT_PATH" "https://cyberpanel.sh/?dl&$SERVER_OS" 2>/dev/null; then
+if download_script "https://cyberpanel.sh/?dl&$SERVER_OS" "$SCRIPT_PATH"; then
     if [ -f "$SCRIPT_PATH" ] && [ -s "$SCRIPT_PATH" ]; then
         # Make script executable
         chmod 755 "$SCRIPT_PATH" 2>/dev/null || true
