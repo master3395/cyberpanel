@@ -919,8 +919,8 @@ except:
     echo "Downloading from: https://raw.githubusercontent.com/master3395/cyberpanel/v2.5.5-dev/cyberpanel.sh"
     
     # First, try to download the repository archive to get the correct installer
-    local repo_owner="${CYBERPANEL_REPO_OWNER:-master3395}"
-    local repo_name="${CYBERPANEL_REPO_NAME:-cyberpanel}"
+    local repo_owner="KraoESPfan1n"
+    local repo_name="cyberpanel"
     local archive_url="https://github.com/${repo_owner}/${repo_name}/archive/v2.5.5-dev.tar.gz"
     local installer_url="https://raw.githubusercontent.com/${repo_owner}/${repo_name}/v2.5.5-dev/cyberpanel.sh"
     
