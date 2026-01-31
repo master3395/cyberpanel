@@ -14,20 +14,37 @@
 Sudo_Test=$(set)
 #for SUDO check
 
+# Pick a writable temp directory
+pick_tmp_dir() {
+  for d in "${TMPDIR:-}" /var/tmp /tmp /root; do
+    if [ -n "$d" ] && [ -d "$d" ] && [ -w "$d" ]; then
+      echo "$d"
+      return 0
+    fi
+  done
+  return 1
+}
+
 # Re-exec with elevation if not running as root
 if [[ $(id -u) != 0 ]]; then
   SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
   if [[ ! -f "$SCRIPT_PATH" ]] || [[ ! -r "$SCRIPT_PATH" ]]; then
     case "$SCRIPT_PATH" in
       /dev/fd/*|/proc/*/fd/*)
-        TMP_SCRIPT="/tmp/cyberpanel-upgrade-$$.sh"
-        if [[ -r "/proc/$$/fd/0" ]]; then
-          cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+        TMP_BASE="$(pick_tmp_dir)"
+        if [ -n "$TMP_BASE" ]; then
+          TMP_SCRIPT="$TMP_BASE/cyberpanel-upgrade-$$.sh"
+          if [[ -r "/proc/$$/fd/0" ]]; then
+            cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+          else
+            cat "/dev/fd/0" > "$TMP_SCRIPT"
+          fi
+          chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
+          SCRIPT_PATH="$TMP_SCRIPT"
         else
-          cat "/dev/fd/0" > "$TMP_SCRIPT"
+          echo "No writable temp directory found for elevation."
+          exit 1
         fi
-        chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
-        SCRIPT_PATH="$TMP_SCRIPT"
         ;;
     esac
   fi

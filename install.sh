@@ -3,20 +3,37 @@
 # CyberPanel v2.5.5-dev Installer
 # Simplified approach similar to stable branch
 
+# Pick a writable temp directory
+pick_tmp_dir() {
+    for d in "${TMPDIR:-}" /var/tmp /tmp /root; do
+        if [ -n "$d" ] && [ -d "$d" ] && [ -w "$d" ]; then
+            echo "$d"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Re-exec with elevation if not running as root
 if [ "$(id -u)" -ne 0 ]; then
     SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
     if [ ! -f "$SCRIPT_PATH" ] || [ ! -r "$SCRIPT_PATH" ]; then
         case "$SCRIPT_PATH" in
             /dev/fd/*|/proc/*/fd/*)
-                TMP_SCRIPT="/tmp/cyberpanel-installer-$$.sh"
-                if [ -r "/proc/$$/fd/0" ]; then
-                    cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+                TMP_BASE="$(pick_tmp_dir)"
+                if [ -n "$TMP_BASE" ]; then
+                    TMP_SCRIPT="$TMP_BASE/cyberpanel-installer-$$.sh"
+                    if [ -r "/proc/$$/fd/0" ]; then
+                        cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+                    else
+                        cat "/dev/fd/0" > "$TMP_SCRIPT"
+                    fi
+                    chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
+                    SCRIPT_PATH="$TMP_SCRIPT"
                 else
-                    cat "/dev/fd/0" > "$TMP_SCRIPT"
+                    echo "No writable temp directory found for elevation."
+                    exit 1
                 fi
-                chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
-                SCRIPT_PATH="$TMP_SCRIPT"
                 ;;
         esac
     fi
@@ -166,7 +183,7 @@ download_script() {
     local url="$1"
     local out="$2"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL -o "$out" "$url" 2>/dev/null && return 0
+        curl -fsSL --retry 3 --connect-timeout 10 --max-time 60 -o "$out" "$url" 2>/dev/null && return 0
     fi
     if command -v wget >/dev/null 2>&1; then
         wget -q -O "$out" "$url" 2>/dev/null && return 0
@@ -175,7 +192,11 @@ download_script() {
 }
 
 # Use absolute path for downloaded script in a writable directory
-TEMP_DIR="/tmp"
+TEMP_DIR="$(pick_tmp_dir)"
+if [ -z "$TEMP_DIR" ]; then
+    echo "[$(date +"%Y-%m-%d %H:%M:%S")] ERROR: No writable temp directory available"
+    exit 1
+fi
 SCRIPT_PATH="$TEMP_DIR/cyberpanel-$$.sh"
 rm -f "$SCRIPT_PATH" "$TEMP_DIR/cyberpanel.sh" "$TEMP_DIR/install.tar.gz"
 
