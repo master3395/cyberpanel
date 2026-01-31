@@ -38,7 +38,7 @@ resolve_script_path() {
         if command -v realpath >/dev/null 2>&1; then
             realpath "$candidate"
         else
-            (cd "$(dirname "$candidate")" && pwd)/"$(basename "$candidate")"
+            printf '%s/%s\n' "$(cd "$(dirname "$candidate")" && pwd)" "$(basename "$candidate")"
         fi
         return 0
     fi
