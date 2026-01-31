@@ -14,6 +14,26 @@ pick_tmp_dir() {
     return 1
 }
 
+# Ensure we are running under bash (sh <(curl ...) uses /bin/sh)
+if [ -z "${BASH_VERSION:-}" ]; then
+    TMP_BASE="$(pick_tmp_dir)"
+    if [ -n "$TMP_BASE" ]; then
+        TMP_SCRIPT="$TMP_BASE/cyberpanel-installer-$$.sh"
+        if [ -r "$0" ]; then
+            cat "$0" > "$TMP_SCRIPT"
+        elif [ -r "/proc/$$/fd/0" ]; then
+            cat "/proc/$$/fd/0" > "$TMP_SCRIPT"
+        else
+            cat "/dev/fd/0" > "$TMP_SCRIPT"
+        fi
+        chmod 700 "$TMP_SCRIPT" 2>/dev/null || true
+        exec bash "$TMP_SCRIPT" "$@"
+    else
+        echo "No writable temp directory found to re-exec with bash."
+        exit 1
+    fi
+fi
+
 # Re-exec with elevation if not running as root
 if [ "$(id -u)" -ne 0 ]; then
     SCRIPT_PATH="$(readlink -f "$0" 2>/dev/null || echo "$0")"
