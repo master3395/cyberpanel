@@ -14,6 +14,9 @@ BRANCH_NAME=""
 DEBUG_MODE=false
 AUTO_INSTALL=false
 INSTALLATION_TYPE=""
+CP_REPO_OWNER="${CP_REPO_OWNER:-master3395}"
+CP_REPO_BRANCH_DEV="${CP_REPO_BRANCH_DEV:-v2.5.5-dev}"
+CP_REPO_BRANCH_STABLE="${CP_REPO_BRANCH_STABLE:-stable}"
 
 # Logging function
 log_message() {
@@ -781,13 +784,12 @@ except:
     fi
     
     # Download the working CyberPanel installation files
-    # Use master3395 fork which has our fixes
     # Try to download the actual installer script (install/install.py) from the repository
-    echo "Downloading from: https://raw.githubusercontent.com/master3395/cyberpanel/v2.5.5-dev/cyberpanel.sh"
+    echo "Downloading from: https://raw.githubusercontent.com/${CP_REPO_OWNER}/cyberpanel/${CP_REPO_BRANCH_DEV}/cyberpanel.sh"
     
     # First, try to download the repository archive to get the correct installer
-    local archive_url="https://github.com/master3395/cyberpanel/archive/v2.5.5-dev.tar.gz"
-    local installer_url="https://raw.githubusercontent.com/master3395/cyberpanel/v2.5.5-dev/cyberpanel.sh"
+    local archive_url="https://github.com/${CP_REPO_OWNER}/cyberpanel/archive/${CP_REPO_BRANCH_DEV}.tar.gz"
+    local installer_url="https://raw.githubusercontent.com/${CP_REPO_OWNER}/cyberpanel/${CP_REPO_BRANCH_DEV}/cyberpanel.sh"
     
     # Test if the development branch archive exists
     if curl -s --head "$archive_url" | grep -q "200 OK"; then
@@ -797,8 +799,8 @@ except:
         # Test if the installer script exists
         if ! curl -s --head "$installer_url" | grep -q "200 OK"; then
             echo "    Development branch not available, falling back to stable"
-            installer_url="https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh"
-            archive_url="https://github.com/master3395/cyberpanel/archive/stable.tar.gz"
+            installer_url="https://raw.githubusercontent.com/${CP_REPO_OWNER}/cyberpanel/${CP_REPO_BRANCH_STABLE}/cyberpanel.sh"
+            archive_url="https://github.com/${CP_REPO_OWNER}/cyberpanel/archive/${CP_REPO_BRANCH_STABLE}.tar.gz"
         fi
     fi
     
@@ -881,9 +883,9 @@ except Exception as e:
     
     # Download the install directory
     echo "Downloading installation files..."
-    local archive_url="https://github.com/master3395/cyberpanel/archive/v2.5.5-dev.tar.gz"
-    if [ "$installer_url" = "https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh" ]; then
-        archive_url="https://github.com/master3395/cyberpanel/archive/stable.tar.gz"
+    local archive_url="https://github.com/${CP_REPO_OWNER}/cyberpanel/archive/${CP_REPO_BRANCH_DEV}.tar.gz"
+    if [ "$installer_url" = "https://raw.githubusercontent.com/${CP_REPO_OWNER}/cyberpanel/${CP_REPO_BRANCH_STABLE}/cyberpanel.sh" ]; then
+        archive_url="https://github.com/${CP_REPO_OWNER}/cyberpanel/archive/${CP_REPO_BRANCH_STABLE}.tar.gz"
     fi
     
     curl --silent -L -o install_files.tar.gz "$archive_url" 2>/dev/null
@@ -893,6 +895,8 @@ except Exception as e:
     fi
     
     # Extract the installation files
+    local archive_root
+    archive_root=$(tar -tzf install_files.tar.gz 2>/dev/null | head -1 | cut -d/ -f1)
     tar -xzf install_files.tar.gz 2>/dev/null
     if [ $? -ne 0 ]; then
         print_status "ERROR: Failed to extract installation files"
@@ -900,16 +904,9 @@ except Exception as e:
     fi
     
     # Copy install directory to current location
-    if [ "$installer_url" = "https://raw.githubusercontent.com/master3395/cyberpanel/stable/cyberpanel.sh" ]; then
-        if [ -d "cyberpanel-stable" ]; then
-            cp -r cyberpanel-stable/install . 2>/dev/null || true
-            cp -r cyberpanel-stable/install.sh . 2>/dev/null || true
-        fi
-    else
-        if [ -d "cyberpanel-v2.5.5-dev" ]; then
-            cp -r cyberpanel-v2.5.5-dev/install . 2>/dev/null || true
-            cp -r cyberpanel-v2.5.5-dev/install.sh . 2>/dev/null || true
-        fi
+    if [ -n "$archive_root" ] && [ -d "$archive_root" ]; then
+        cp -r "$archive_root/install" . 2>/dev/null || true
+        cp -r "$archive_root/install.sh" . 2>/dev/null || true
     fi
     
     # Verify install directory was copied

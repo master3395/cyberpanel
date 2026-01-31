@@ -183,12 +183,12 @@ if [ "$BRANCH_NAME" = "v2.5.5-dev" ] || [ "$BRANCH_NAME" = "stable" ]; then
                 # Use absolute path to avoid any relative path issues
                 cd "$TEMP_DIR" || cd /tmp || cd /
                 echo "[$(date +"%Y-%m-%d %H:%M:%S")] Executing $SCRIPT_PATH"
-                bash "$SCRIPT_PATH" "$@"
+                CP_REPO_OWNER="KraoESPfan1n" CP_REPO_BRANCH_DEV="fix/elevate-stdin" bash "$SCRIPT_PATH" "$@"
                 exit $?
             else
                 echo "[$(date +"%Y-%m-%d %H:%M:%S")] WARNING: Could not make script executable, trying alternative method..."
                 cd "$TEMP_DIR" || cd /tmp || cd /
-                bash -c "bash '$SCRIPT_PATH' $*"
+                CP_REPO_OWNER="KraoESPfan1n" CP_REPO_BRANCH_DEV="fix/elevate-stdin" bash -c "bash '$SCRIPT_PATH' $*"
                 exit $?
             fi
         fi
