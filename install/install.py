@@ -17,6 +17,8 @@ import stat
 import secrets
 import install_utils
 
+TMP_BASE = os.environ.get("TMPDIR", "/tmp")
+
 VERSION = '2.4'
 BUILD = 4
 
@@ -603,15 +605,15 @@ class preFlightsChecks:
                                         
                                         if alt_package in rpm_urls:
                                             # Download and install RPM directly
-                                            download_command = f"curl -L {rpm_urls[alt_package]} -o /tmp/{alt_package}.rpm"
+                                            download_command = f"curl -L {rpm_urls[alt_package]} -o {TMP_BASE}/{alt_package}.rpm"
                                             self.call(download_command, self.distro, f"Download {alt_package}", f"Download {alt_package}", 1, 0, os.EX_OSERR)
                                             
-                                            install_command = f"rpm -ivh /tmp/{alt_package}.rpm --force"
+                                            install_command = f"rpm -ivh {TMP_BASE}/{alt_package}.rpm --force"
                                             result = self.call(install_command, self.distro, f"Install {alt_package}", f"Install {alt_package}", 1, 0, os.EX_OSERR)
                                             if result == 1:
                                                 self.stdOut(f"Successfully installed {alt_package} via direct RPM download", 1)
                                                 # Clean up downloaded file
-                                                self.call(f"rm -f /tmp/{alt_package}.rpm", self.distro, f"Cleanup {alt_package}", f"Cleanup {alt_package}", 1, 0, os.EX_OSERR)
+                                                self.call(f"rm -f {TMP_BASE}/{alt_package}.rpm", self.distro, f"Cleanup {alt_package}", f"Cleanup {alt_package}", 1, 0, os.EX_OSERR)
                                                 break
                                     except:
                                         self.stdOut(f"Direct RPM download failed for {alt_package}", 1)
@@ -670,15 +672,15 @@ class preFlightsChecks:
                 if package and package in rpm_sources:
                     try:
                         self.stdOut(f"Trying direct RPM download for {package}...", 1)
-                        download_command = f"curl -L {rpm_sources[package]} -o /tmp/{package}.rpm"
+                        download_command = f"curl -L {rpm_sources[package]} -o {TMP_BASE}/{package}.rpm"
                         self.call(download_command, self.distro, f"Download {package}", f"Download {package}", 1, 0, os.EX_OSERR)
                         
-                        install_command = f"rpm -ivh /tmp/{package}.rpm --force"
+                        install_command = f"rpm -ivh {TMP_BASE}/{package}.rpm --force"
                         result = self.call(install_command, self.distro, f"Install {package}", f"Install {package}", 1, 0, os.EX_OSERR)
                         if result == 1:
                             self.stdOut(f"Successfully installed {package} via direct RPM download", 1)
                             # Clean up downloaded file
-                            self.call(f"rm -f /tmp/{package}.rpm", self.distro, f"Cleanup {package}", f"Cleanup {package}", 1, 0, os.EX_OSERR)
+                            self.call(f"rm -f {TMP_BASE}/{package}.rpm", self.distro, f"Cleanup {package}", f"Cleanup {package}", 1, 0, os.EX_OSERR)
                             installed = True
                     except:
                         self.stdOut(f"Direct RPM download failed for {package}", 1)
@@ -1222,8 +1224,8 @@ class preFlightsChecks:
                 self.stdOut(f"WARNING: Could not create backup: {e}", 1)
 
             # Download binaries to temp location
-            tmp_binary = "/tmp/openlitespeed-custom"
-            tmp_module = "/tmp/cyberpanel_ols.so"
+            tmp_binary = f"{TMP_BASE}/openlitespeed-custom"
+            tmp_module = f"{TMP_BASE}/cyberpanel_ols.so"
 
             self.stdOut("Downloading custom binaries...", 1)
 
@@ -3105,16 +3107,16 @@ module cyberpanel_ols {
                 download_url = "https://github.com/usmannasir/cyberpanel/archive/refs/heads/stable.zip"
                 extract_dir = "cyberpanel-stable"
             
-            command = f"wget -O /tmp/cyberpanel.zip {download_url}"
+            command = f"wget -O {TMP_BASE}/cyberpanel.zip {download_url}"
             preFlightsChecks.call(command, self.distro, command, command, 1, 1, os.EX_OSERR)
             
-            command = "unzip /tmp/cyberpanel.zip -d /usr/local/"
+            command = f"unzip {TMP_BASE}/cyberpanel.zip -d /usr/local/"
             preFlightsChecks.call(command, self.distro, command, command, 1, 1, os.EX_OSERR)
             
             command = f"mv /usr/local/{extract_dir} /usr/local/CyberCP"
             preFlightsChecks.call(command, self.distro, command, command, 1, 1, os.EX_OSERR)
             
-            command = "rm -f /tmp/cyberpanel.zip"
+            command = f"rm -f {TMP_BASE}/cyberpanel.zip"
             preFlightsChecks.call(command, self.distro, command, command, 1, 1, os.EX_OSERR)
             
             if not os.path.exists('/usr/local/CyberCP'):
@@ -3266,9 +3268,13 @@ password="%s"
 
         # Find the correct Python virtual environment path
         python_paths = [
-            "/usr/local/CyberPanel/bin/python",
             "/usr/local/CyberCP/bin/python",
-            "/usr/local/CyberPanel-venv/bin/python"
+            "/usr/local/CyberCP/bin/python3",
+            "/usr/local/CyberPanel/bin/python",
+            "/usr/local/CyberPanel/bin/python3",
+            "/usr/local/CyberPanel-venv/bin/python",
+            "/usr/local/CyberPanel-venv/bin/python3",
+            "/usr/bin/python3"
         ]
         
         python_path = None
@@ -3844,9 +3850,9 @@ $cfg['Servers'][$i]['LogoutURL'] = 'phpmyadminsignin.php?logout';
             elif self.distro == openeuler:
                 # AlmaLinux 9/10, RockyLinux 9, RHEL 9, CloudLinux 9, and other modern RHEL-based systems
                 dovecot_commands = [
-                    'dnf install dovecot dovecot-mysql -y --skip-broken --nobest',
-                    'dnf install dovecot23 dovecot23-mysql -y --skip-broken --nobest',
-                    'dnf install dovecot -y --skip-broken --nobest'
+                    'dnf install dovecot dovecot-mysql -y --skip-broken --nobest --allowerasing',
+                    'dnf install dovecot23 dovecot23-mysql -y --skip-broken --nobest --allowerasing',
+                    'dnf install dovecot -y --skip-broken --nobest --allowerasing'
                 ]
                 
                 dovecot_installed = False
@@ -4897,8 +4903,10 @@ user_query = SELECT email as user, password, 'vmail' as uid, 'vmail' as gid, '/h
 
             # Determine the correct Python path
             python_paths = [
-                "/usr/local/CyberPanel/bin/python",
                 "/usr/local/CyberCP/bin/python",
+                "/usr/local/CyberCP/bin/python3",
+                "/usr/local/CyberPanel/bin/python",
+                "/usr/local/CyberPanel/bin/python3",
                 "/usr/bin/python3",
                 "/usr/local/bin/python3"
             ]
@@ -4915,10 +4923,12 @@ user_query = SELECT email as user, password, 'vmail' as uid, 'vmail' as gid, '/h
                 preFlightsChecks.stdOut("Attempting to create virtual environment symlink...", 1)
                 
                 # Try to create symlink for compatibility
-                if os.path.exists('/usr/local/CyberCP/bin/python') and not os.path.exists('/usr/local/CyberPanel'):
+                if (os.path.exists('/usr/local/CyberCP/bin/python') or os.path.exists('/usr/local/CyberCP/bin/python3')) and not os.path.exists('/usr/local/CyberPanel'):
                     try:
                         os.symlink('/usr/local/CyberCP', '/usr/local/CyberPanel')
                         python_path = "/usr/local/CyberPanel/bin/python"
+                        if not os.path.exists(python_path) and os.path.exists("/usr/local/CyberPanel/bin/python3"):
+                            python_path = "/usr/local/CyberPanel/bin/python3"
                         preFlightsChecks.stdOut(f"Created symlink, using Python at: {python_path}", 1)
                     except Exception as e:
                         preFlightsChecks.stdOut(f"Failed to create symlink: {str(e)}", 0)
@@ -4970,8 +4980,11 @@ user_query = SELECT email as user, password, 'vmail' as uid, 'vmail' as gid, '/h
             # Check multiple possible virtual environment locations
             venv_paths = [
                 '/usr/local/CyberCP/bin/python',
+                '/usr/local/CyberCP/bin/python3',
                 '/usr/local/CyberPanel/bin/python',
-                '/usr/local/CyberPanel-venv/bin/python'
+                '/usr/local/CyberPanel/bin/python3',
+                '/usr/local/CyberPanel-venv/bin/python',
+                '/usr/local/CyberPanel-venv/bin/python3'
             ]
             
             found_venv = None
@@ -4986,14 +4999,13 @@ user_query = SELECT email as user, password, 'vmail' as uid, 'vmail' as gid, '/h
                 return False
             
             # Create symlinks for compatibility if needed
-            if found_venv == '/usr/local/CyberCP/bin/python':
-                if not os.path.exists('/usr/local/CyberPanel/bin/python'):
-                    if not os.path.exists('/usr/local/CyberPanel'):
-                        preFlightsChecks.stdOut("Creating CyberPanel symlink for compatibility", 1)
-                        os.symlink('/usr/local/CyberCP', '/usr/local/CyberPanel')
-                    else:
-                        preFlightsChecks.stdOut("CyberPanel directory exists but Python not found", 0)
-                        return False
+            if found_venv in ['/usr/local/CyberCP/bin/python', '/usr/local/CyberCP/bin/python3']:
+                if not os.path.exists('/usr/local/CyberPanel'):
+                    preFlightsChecks.stdOut("Creating CyberPanel symlink for compatibility", 1)
+                    os.symlink('/usr/local/CyberCP', '/usr/local/CyberPanel')
+                elif not (os.path.exists('/usr/local/CyberPanel/bin/python') or os.path.exists('/usr/local/CyberPanel/bin/python3')):
+                    preFlightsChecks.stdOut("CyberPanel directory exists but Python not found", 0)
+                    return False
             
             # Test if Python is executable
             try:
@@ -5018,8 +5030,10 @@ user_query = SELECT email as user, password, 'vmail' as uid, 'vmail' as gid, '/h
             
             # Determine the correct Python path
             python_paths = [
-                "/usr/local/CyberPanel/bin/python",
                 "/usr/local/CyberCP/bin/python",
+                "/usr/local/CyberCP/bin/python3",
+                "/usr/local/CyberPanel/bin/python",
+                "/usr/local/CyberPanel/bin/python3",
                 "/usr/bin/python3",
                 "/usr/local/bin/python3"
             ]
@@ -6036,9 +6050,9 @@ vmail
                         KEY type (type)
                     );
                     """
-                    with open('/tmp/powerdns_schema.sql', 'w') as f:
+                    with open(f'{TMP_BASE}/powerdns_schema.sql', 'w') as f:
                         f.write(basic_schema)
-                    preFlightsChecks.call("mysql powerdns < /tmp/powerdns_schema.sql", self.distro, "Create PowerDNS tables", "mysql powerdns < /tmp/powerdns_schema.sql", 1, 0, os.EX_OSERR)
+                    preFlightsChecks.call(f"mysql powerdns < {TMP_BASE}/powerdns_schema.sql", self.distro, "Create PowerDNS tables", f"mysql powerdns < {TMP_BASE}/powerdns_schema.sql", 1, 0, os.EX_OSERR)
             
         except Exception as e:
             preFlightsChecks.stdOut(f"Warning: Could not set up PowerDNS database access: {str(e)}", 0)
@@ -6108,8 +6122,22 @@ vmail
                 preFlightsChecks.stdOut(f"PowerDNS config copied to {dnsPath}")
                 config_file = dnsPath
             else:
-                preFlightsChecks.stdOut("[ERROR] PowerDNS template not found", 1)
-                return
+                preFlightsChecks.stdOut("[WARNING] PowerDNS template not found, creating basic config", 1)
+                mysqlPassword = getattr(self, 'mysql_Root_password', 'cyberpanel')
+                with open(dnsPath, 'w') as f:
+                    f.write("# PowerDNS MySQL Backend Configuration\n")
+                    f.write("launch=gmysql\n")
+                    f.write("gmysql-host=localhost\n")
+                    f.write("gmysql-port=3306\n")
+                    f.write("gmysql-user=cyberpanel\n")
+                    f.write(f"gmysql-password={mysqlPassword}\n")
+                    f.write("gmysql-dbname=cyberpanel\n")
+                    f.write("\n# Basic PowerDNS settings\n")
+                    f.write("daemon=no\n")
+                    f.write("guardian=no\n")
+                    f.write("setgid=pdns\n")
+                    f.write("setuid=pdns\n")
+                config_file = dnsPath
 
         # Now configure the existing or newly copied file
         if os.path.exists(config_file):
