@@ -4,6 +4,13 @@ All notable changes to CyberPanel are documented here. The canonical,
 continuously updated changelog also lives at
 https://cyberpanel.net/KnowledgeBase/home/change-logs/
 
+## Unreleased (2.4.9 line)
+### Security: default deny for sensitive web files (#1859)
+- Backport of upstream/dev fix: OpenLiteSpeed and LiteSpeed Enterprise / Apache
+  vhost templates block direct HTTP access to `.env`, `.git`, `.htpasswd`,
+  `.user.ini`, and `.htaccess` (403).
+- Existing sites: run `CPScripts/retrofit-sensitive-file-denials.sh` (restarts LSWS).
+
 ## v2.4.9 (build 9) — 2026-07-23
 
 A maintenance release: a broad batch of security, SSL, backup/restore and
