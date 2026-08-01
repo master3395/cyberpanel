@@ -2,7 +2,10 @@
 {% load i18n %}
 {% load static %}
 {% block title %}{% trans "Email Marketing - CyberPanel" %}{% endblock %}
-{% block module_scripts %}<script defer src="{% static 'emailMarketing/emailMarketing.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block module_scripts %}
+{{ block.super }}
+<script defer src="{% static 'emailMarketing/emailMarketing.js' %}?v={{ CP_VERSION }}"></script>
+{% endblock %}
 {% block content %}
 
 {% get_current_language as LANGUAGE_CODE %}
