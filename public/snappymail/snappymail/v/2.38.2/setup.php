@@ -25,9 +25,9 @@ if (defined('APP_VERSION')) {
 
 	if (is_writable(dirname(APP_DATA_FOLDER_PATH))) {
 		if (is_dir(APP_DATA_FOLDER_PATH)) {
-			chmod(APP_DATA_FOLDER_PATH, 0700);
+			chmod(APP_DATA_FOLDER_PATH, 0770);
 		} else {
-			mkdir(APP_DATA_FOLDER_PATH, 0700, true);
+			mkdir(APP_DATA_FOLDER_PATH, 0770, true);
 		}
 	}
 
