@@ -87,7 +87,7 @@ CI (`.github/workflows/docker-panel.yml`) scans every built tag with Trivy:
 - **Warn** on unfixed critical/high (no distro patch yet)
 - Rebuilds weekly (Monday 04:00 UTC) to pick up distro patches
 
-See [`DOCKER-PANEL-SECURITY.md`](DOCKER-PANEL-SECURITY.md) for Scout baseline and residual risk.
+See [`DOCKER-PANEL-SECURITY.md`](DOCKER-PANEL-SECURITY.md) for Scout baseline, post-rebuild Trivy counts per tag, and residual risk. When checking Docker Hub, use the **Tags** page for the tag you deploy; the repo **General** tab aggregates all tags and legacy digests.
 
 ## Smoke tests (Windows)
 
