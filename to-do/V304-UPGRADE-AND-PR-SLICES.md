@@ -281,3 +281,30 @@ git branch -a | grep slice/v304
 export CYBERPANEL_GIT_USER=master3395
 bash /usr/local/CyberCP/cyberpanel_upgrade.sh --branch v3.0.4-dev --debug
 ```
+
+---
+
+## Live upgrade executed (26/08/2026 22:46 CEST)
+
+**Command used:**
+```bash
+bash /usr/local/CyberCP/cyberpanel_upgrade.sh \
+  --branch v3.0.4-dev --repo master3395 \
+  --mariadb-version 12.3 --no-backup-db --no-system-update --debug
+```
+
+**First attempt:** failed on 28GB `/var/lib/mysql` tarball (`--backup-db`). Use `--no-backup-db` when a recent `mysqldump` exists.
+
+**Post-upgrade hotfixes applied on server:**
+- `baseTemplate/models.py`: `UserNotificationPreferences` model (views imported it; table existed)
+- `firewall/ruleOrder.py`: from v3.0.2-dev-fork (slice referenced it but file was missing)
+- `pluginHolder/`: full views from v3.0.2-dev-fork + live-ops `urls.py`
+- `CyberCP/originDedupeMiddleware.py`: required by `MIDDLEWARE` in settings
+- `phpmyadmin/index.php`: restored from `CyberCPBak`
+- `bin/lswsgi`: installed from build tree / backup
+
+**Verified after restart:**
+- `https://207.180.193.210:2087/` HTTP 200 (login)
+- `/base/` HTTP 302
+- Git tip: `46f9ba8a` + hotfix commit
+- `cyberpanel_version.py`: VERSION 3.0, BUILD 4
