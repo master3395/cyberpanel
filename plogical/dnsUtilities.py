@@ -33,9 +33,17 @@ class DNS:
         email = (email or '').strip()
         if not api_secret:
             raise ValueError('Cloudflare API key or token is not configured')
+
         token_markers = ('api_token', 'token', 'none', 'n/a')
         if email.lower() in token_markers or '@' not in email:
             return CloudFlare.CloudFlare(token=api_secret)
+
+        # Global API keys are 37-char hex. Longer/different secrets are API tokens.
+        if len(api_secret) != 37 or not re.match(r'^[a-f0-9]{37}$', api_secret, re.I):
+            return CloudFlare.CloudFlare(token=api_secret)
+
+        return CloudFlare.CloudFlare(email=email, key=api_secret)
+
         try:
             return CloudFlare.CloudFlare(email=email, key=api_secret)
         except Exception:
