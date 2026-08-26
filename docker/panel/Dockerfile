@@ -5,16 +5,19 @@
 ARG BASE_IMAGE=almalinux:10
 ARG OS_FAMILY=rhel
 ARG OS_TAG=almalinux10
+ARG IMAGE_REVISION=unknown
 
 FROM ${BASE_IMAGE}
 
 # Re-declare build args after FROM (pre-FROM ARGs do not persist into the image stage).
 ARG OS_FAMILY=rhel
 ARG OS_TAG=almalinux10
+ARG IMAGE_REVISION=unknown
 
 LABEL org.opencontainers.image.title="CyberPanel"
 LABEL org.opencontainers.image.vendor="News Targeted"
 LABEL org.opencontainers.image.source="https://github.com/master3395/cyberpanel"
+LABEL org.opencontainers.image.revision="${IMAGE_REVISION}"
 LABEL cyberpanel.os.tag="${OS_TAG}"
 
 ENV container=docker
@@ -25,16 +28,29 @@ ENV OS_FAMILY=${OS_FAMILY}
 
 STOPSIGNAL SIGRTMIN+3
 
-# systemd in container
+# Bootstrap packages for systemd first boot (openssh-server installed by cyberpanel.sh on demand).
 RUN if [ "$OS_FAMILY" = "debian" ]; then \
       export DEBIAN_FRONTEND=noninteractive && \
       apt-get update && \
-      apt-get install -y --no-install-recommends systemd systemd-sysv dbus curl git ca-certificates openssh-server sudo iproute2 procps hostname && \
+      apt-get install -y --no-install-recommends systemd systemd-sysv dbus curl git ca-certificates sudo iproute2 procps hostname && \
       apt-get clean && rm -rf /var/lib/apt/lists/* ; \
     else \
-      (command -v dnf >/dev/null && dnf -y install systemd systemd-sysv dbus curl git ca-certificates openssh-server sudo iproute procps-ng hostname) || \
-      (command -v yum >/dev/null && yum -y install systemd systemd-sysv dbus curl git ca-certificates openssh-server sudo iproute procps-ng hostname) ; \
+      (command -v dnf >/dev/null && dnf -y install systemd systemd-sysv dbus curl git ca-certificates sudo iproute procps-ng hostname) || \
+      (command -v yum >/dev/null && yum -y install systemd systemd-sysv dbus curl git ca-certificates sudo iproute procps-ng hostname) ; \
       (command -v dnf >/dev/null && dnf clean all) || (command -v yum >/dev/null && yum clean all) || true ; \
+    fi
+
+# Apply distro security updates before baking the layer (reduces Scout/Trivy findings at push time).
+RUN if [ "$OS_FAMILY" = "debian" ]; then \
+      export DEBIAN_FRONTEND=noninteractive && \
+      apt-get update && \
+      apt-get upgrade -y && \
+      apt-get dist-upgrade -y && \
+      apt-get autoremove -y && \
+      apt-get clean && rm -rf /var/lib/apt/lists/* ; \
+    else \
+      (command -v dnf >/dev/null && dnf -y update && dnf clean all) || \
+      (command -v yum >/dev/null && yum -y update && yum clean all) || true ; \
     fi
 
 RUN systemctl set-default multi-user.target 2>/dev/null || true
