@@ -1,4 +1,12 @@
 # Changelog
+## [Unreleased] - 26/08/2026
+
+### Install and fork defaults
+- `install.sh` one-liner now downloads `cyberpanel.sh` from `master3395/cyberpanel` branch `v3.0.4-dev` by default (`CYBERPANEL_GIT_USER` / `CYBERPANEL_BRANCH` overridable).
+- `cyberpanel.sh`: `--repo`, improved `--branch` parsing, container env (`Apply_Container_Env`), exports `CYBERPANEL_GIT_USER` / `CYBERPANEL_BRANCH` for `install.py` / upgrades.
+- Interactive install prompts for admin **username** and **password** (no longer forced random password).
+- `plogical/adminPass.py`: `--username` for first admin and password resets; stores username in `/etc/cyberpanel/adminUser`.
+- Docker / Hyper-V tooling merged from `v3.0.2-dev-fork`, retargeted to `v3.0.4-dev` / `master3395`.
 
 All notable changes to CyberPanel are documented here. The canonical,
 continuously updated changelog also lives at
