@@ -17,6 +17,7 @@ from manageSSL.views import issueSSL, obtainHostNameSSL, obtainMailServerSSL
 from packages.packagesManager import PackagesManager
 from plogical.mysqlUtilities import mysqlUtilities
 from plogical.virtualHostUtilities import virtualHostUtilities
+from plogical.dnsUtilities import DNS
 from websiteFunctions.website import WebsiteManager
 from s3Backups.s3Backups import S3Backups
 from serverLogs.views import getLogsFromFile
@@ -2881,7 +2882,6 @@ class CloudManager:
             ##
 
             import CloudFlare
-from plogical.dnsUtilities import DNS
             cf = DNS.createCloudFlareClient(self.data.get('cfemail', ''), self.data.get('apikey', ''))
 
             zones = cf.zones.get(params={'per_page': 100})
