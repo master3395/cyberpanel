@@ -2881,7 +2881,8 @@ class CloudManager:
             ##
 
             import CloudFlare
-            cf = CloudFlare.CloudFlare(email=self.data['cfemail'], token=self.data['apikey'])
+from plogical.dnsUtilities import DNS
+            cf = DNS.createCloudFlareClient(self.data.get('cfemail', ''), self.data.get('apikey', ''))
 
             zones = cf.zones.get(params={'per_page': 100})
 

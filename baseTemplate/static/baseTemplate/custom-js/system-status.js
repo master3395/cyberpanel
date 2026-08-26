@@ -966,7 +966,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     $scope.sshLoginsPaginated = [];
     $scope.sshLoginsCurrentPage = 1;
     $scope.sshLoginsPerPage = 10;
-    $scope.sshLoginsGoToPage = 1;
+    $scope.sshLoginsGoToPageInput = 1;
     $scope.loadingSSHLogins = true;
     $scope.errorSSHLogins = '';
     
@@ -1014,15 +1014,22 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             $scope.updateSSHLoginsPaginated();
         }
     };
+
+    $scope.sshLoginsChangePerPage = function() {
+        $scope.sshLoginsPerPage = Math.max(parseInt($scope.sshLoginsPerPage, 10) || 10, 1);
+        $scope.sshLoginsCurrentPage = 1;
+        $scope.sshLoginsGoToPageInput = 1;
+        $scope.updateSSHLoginsPaginated();
+    };
     
     $scope.sshLoginsGoToPageNumber = function() {
-        var page = parseInt($scope.sshLoginsGoToPage);
+        var page = parseInt($scope.sshLoginsGoToPageInput, 10);
         var totalPages = $scope.getSSHLoginsTotalPages();
         if (page >= 1 && page <= totalPages) {
             $scope.sshLoginsCurrentPage = page;
             $scope.updateSSHLoginsPaginated();
         } else {
-            $scope.sshLoginsGoToPage = $scope.sshLoginsCurrentPage;
+            $scope.sshLoginsGoToPageInput = $scope.sshLoginsCurrentPage;
         }
     };
     
@@ -1034,7 +1041,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             if (response.data && response.data.logins && Array.isArray(response.data.logins)) {
                 $scope.sshLogins = response.data.logins;
                 $scope.sshLoginsCurrentPage = 1;
-                $scope.sshLoginsGoToPage = 1;
+                $scope.sshLoginsGoToPageInput = 1;
                 console.log('SSH Logins loaded:', $scope.sshLogins.length, 'items');
                 $scope.updateSSHLoginsPaginated();
                 console.log('SSH Logins paginated:', $scope.sshLoginsPaginated.length, 'items');
@@ -1057,7 +1064,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     $scope.sshLogsPaginated = [];
     $scope.sshLogsCurrentPage = 1;
     $scope.sshLogsPerPage = 10;
-    $scope.sshLogsGoToPage = 1;
+    $scope.sshLogsGoToPageInput = 1;
     $scope.loadingSSHLogs = true;
     $scope.errorSSHLogs = '';
     $scope.securityAlerts = [];
@@ -1107,15 +1114,22 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             $scope.updateSSHLogsPaginated();
         }
     };
+
+    $scope.sshLogsChangePerPage = function() {
+        $scope.sshLogsPerPage = Math.max(parseInt($scope.sshLogsPerPage, 10) || 10, 1);
+        $scope.sshLogsCurrentPage = 1;
+        $scope.sshLogsGoToPageInput = 1;
+        $scope.updateSSHLogsPaginated();
+    };
     
     $scope.sshLogsGoToPageNumber = function() {
-        var page = parseInt($scope.sshLogsGoToPage);
+        var page = parseInt($scope.sshLogsGoToPageInput, 10);
         var totalPages = $scope.getSSHLogsTotalPages();
         if (page >= 1 && page <= totalPages) {
             $scope.sshLogsCurrentPage = page;
             $scope.updateSSHLogsPaginated();
         } else {
-            $scope.sshLogsGoToPage = $scope.sshLogsCurrentPage;
+            $scope.sshLogsGoToPageInput = $scope.sshLogsCurrentPage;
         }
     };
     
@@ -1127,7 +1141,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             if (response.data && response.data.logs && Array.isArray(response.data.logs)) {
                 $scope.sshLogs = response.data.logs;
                 $scope.sshLogsCurrentPage = 1;
-                $scope.sshLogsGoToPage = 1;
+                $scope.sshLogsGoToPageInput = 1;
                 console.log('SSH Logs loaded:', $scope.sshLogs.length, 'items');
                 $scope.updateSSHLogsPaginated();
                 console.log('SSH Logs paginated:', $scope.sshLogsPaginated.length, 'items');
@@ -1341,7 +1355,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             if (response.data && response.data.logs && Array.isArray(response.data.logs)) {
                 $scope.sshLogs = response.data.logs;
                 $scope.sshLogsCurrentPage = 1;
-                $scope.sshLogsGoToPage = 1;
+                $scope.sshLogsGoToPageInput = 1;
                 $scope.updateSSHLogsPaginated();
             } else {
                 $scope.sshLogs = [];

@@ -721,7 +721,7 @@ class DNSManager:
             self.loadCFKeys()
 
             params = {'name': zoneDomain, 'per_page':50}
-            cf = CloudFlare.CloudFlare(email=self.email,token=self.key)
+            cf = DNS.createCloudFlareClient(self.email, self.key)
 
             try:
                 zones = cf.zones.get(params=params)
@@ -827,7 +827,7 @@ class DNSManager:
             self.loadCFKeys()
 
             params = {'name': zoneDomain, 'per_page': 50}
-            cf = CloudFlare.CloudFlare(email=self.email, token=self.key)
+            cf = DNS.createCloudFlareClient(self.email, self.key)
 
             try:
                 zones = cf.zones.get(params=params)
@@ -879,7 +879,7 @@ class DNSManager:
             self.loadCFKeys()
 
             params = {'name': zoneDomain, 'per_page': 50}
-            cf = CloudFlare.CloudFlare(email=self.email, token=self.key)
+            cf = DNS.createCloudFlareClient(self.email, self.key)
 
             try:
                 zones = cf.zones.get(params=params)
@@ -1102,7 +1102,7 @@ class DNSManager:
             self.loadCFKeys()
 
             params = {'name': zoneDomain, 'per_page': 50}
-            cf = CloudFlare.CloudFlare(email=self.email, token=self.key)
+            cf = DNS.createCloudFlareClient(self.email, self.key)
 
             ## Get zone
 

@@ -24,6 +24,23 @@ from plogical.processUtilities import ProcessUtilities
 
 
 class DNS:
+
+    @staticmethod
+    def createCloudFlareClient(email, api_secret):
+        """Build CloudFlare API client for Global API Key or API Token."""
+        import CloudFlare
+        api_secret = (api_secret or '').strip()
+        email = (email or '').strip()
+        if not api_secret:
+            raise ValueError('Cloudflare API key or token is not configured')
+        token_markers = ('api_token', 'token', 'none', 'n/a')
+        if email.lower() in token_markers or '@' not in email:
+            return CloudFlare.CloudFlare(token=api_secret)
+        try:
+            return CloudFlare.CloudFlare(email=email, key=api_secret)
+        except Exception:
+            return CloudFlare.CloudFlare(token=api_secret)
+
     nsd_base = "/etc/nsd/nsd.conf"
     zones_base_dir = "/usr/local/lsws/conf/zones/"
     create_zone_dir = "/usr/local/lsws/conf/zones"
@@ -80,7 +97,7 @@ class DNS:
                     else:
                         return 0, 'Sync not enabled.'
 
-                cf = CloudFlare.CloudFlare(email=self.email, token=self.key)
+                cf = DNS.createCloudFlareClient(self.email, self.key)
 
                 try:
                     params = {'name': zoneDomain, 'per_page': 50}
@@ -644,7 +661,7 @@ class DNS:
             dns = DNS()
             dns.admin = zone.admin
             if dns.loadCFKeys():
-                cf = CloudFlare.CloudFlare(email=dns.email, token=dns.key)
+                cf = DNS.createCloudFlareClient(dns.email, dns.key)
 
                 if dns.status == 'Enable':
                     try:
@@ -819,7 +836,7 @@ class DNS:
                 dns.admin = zone.admin
                 dns.loadCFKeys()
 
-                cf = CloudFlare.CloudFlare(email=dns.email, token=dns.key)
+                cf = DNS.createCloudFlareClient(dns.email, dns.key)
 
                 if dns.status == 'Enable':
                     try:
