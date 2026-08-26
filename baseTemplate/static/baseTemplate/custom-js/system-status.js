@@ -18,6 +18,15 @@ function getCookie(name) {
             }
         }
     }
+    // Fallback: CSRF seed form in base template (cookie may be missing briefly after login)
+    if (!cookieValue && name === 'csrftoken') {
+        try {
+            var el = document.querySelector('#cp-csrf-seed input[name="csrfmiddlewaretoken"], input[name="csrfmiddlewaretoken"]');
+            if (el && el.value) {
+                cookieValue = el.value;
+            }
+        } catch (e) {}
+    }
     return cookieValue;
 }
 
@@ -149,6 +158,12 @@ app.controller('systemStatusInfo', function ($scope, $http, $timeout) {
             $scope.cpuUsage = response.data.cpuUsage;
             $scope.ramUsage = response.data.ramUsage;
             $scope.diskUsage = response.data.diskUsage;
+            $scope.sizeDisplayUnit = response.data.sizeDisplayUnit || 'auto';
+            try { window.CPSizeDisplayUnit = $scope.sizeDisplayUnit; } catch (e) {}
+            if (response.data.ramTotalLabel) { $scope.ramTotalLabel = response.data.ramTotalLabel; }
+            if (response.data.diskTotalLabel) { $scope.diskTotalLabel = response.data.diskTotalLabel; }
+            if (response.data.diskFreeLabel) { $scope.diskFreeLabel = response.data.diskFreeLabel; }
+
             
             // Total system information
             $scope.cpuCores = response.data.cpuCores;
@@ -933,7 +948,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     $scope.errorTopProcesses = '';
     $scope.refreshTopProcesses = function() {
         $scope.loadingTopProcesses = true;
-        $http.get('/base/getTopProcesses').then(function (response) {
+        return $http.get('/base/getTopProcesses').then(function (response) {
             $scope.loadingTopProcesses = false;
             if (response.data && response.data.status === 1 && response.data.processes) {
                 $scope.topProcesses = response.data.processes;
@@ -1116,8 +1131,8 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                 console.log('SSH Logs loaded:', $scope.sshLogs.length, 'items');
                 $scope.updateSSHLogsPaginated();
                 console.log('SSH Logs paginated:', $scope.sshLogsPaginated.length, 'items');
-                // Analyze logs for security issues
-                $scope.analyzeSSHSecurity();
+                // Analyze logs for security issues (silent on auto-refresh)
+                $scope.analyzeSSHSecurity(false);
             } else {
                 console.warn('SSH Logs: No data or invalid format', response.data);
                 $scope.sshLogs = [];
@@ -1135,94 +1150,235 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     // Security Analysis
     $scope.showAddonRequired = false;
     $scope.addonInfo = {};
-    
-    // IP Blocking functionality
     $scope.blockingIP = null;
     $scope.blockedIPs = {};
+
+    var activeNotify = null;
+
+    function notifyUser(title, text, type, delay) {
+        if (typeof PNotify !== 'undefined') {
+            try {
+                if (typeof PNotify.removeAll === 'function') {
+                    PNotify.removeAll();
+                } else if (activeNotify && typeof activeNotify.remove === 'function') {
+                    activeNotify.remove();
+                }
+            } catch (e) { /* ignore cleanup errors */ }
+            activeNotify = new PNotify({
+                title: title,
+                text: text,
+                type: type || 'info',
+                delay: delay || 5000,
+                buttons: { closer: true, sticker: false }
+            });
+            return activeNotify;
+        }
+        if (window.console && console.log) {
+            console.log('[SSH Security]', title + ':', text);
+        }
+        return null;
+    }
+
+    function parseBanResponse(responseData) {
+        if (typeof responseData === 'string') {
+            try {
+                return JSON.parse(responseData);
+            } catch (e) {
+                return null;
+            }
+        }
+        return responseData;
+    }
+
+    function banIPAddress(ipAddress, reason, onSuccess) {
+        ipAddress = String(ipAddress || '').trim();
+        if (!ipAddress) {
+            notifyUser('Error', 'No IP address provided', 'error');
+            return;
+        }
+
+        var ipPattern = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+        if (!ipPattern.test(ipAddress)) {
+            notifyUser('Error', 'Invalid IP address format: ' + ipAddress, 'error');
+            return;
+        }
+
+        if ($scope.blockingIP === ipAddress) {
+            return;
+        }
+
+        if ($scope.blockedIPs && $scope.blockedIPs[ipAddress]) {
+            notifyUser('Info', 'IP address ' + ipAddress + ' is already banned', 'info', 3000);
+            return;
+        }
+
+        $scope.blockingIP = ipAddress;
+
+        $http.post('/firewall/addBannedIP', {
+            ip: ipAddress,
+            reason: reason,
+            duration: 'permanent'
+        }, {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        }).then(function (response) {
+            $scope.blockingIP = null;
+            var responseData = parseBanResponse(response.data);
+
+            if (responseData && (responseData.status === 1 || responseData.status === '1')) {
+                if (!$scope.blockedIPs) {
+                    $scope.blockedIPs = {};
+                }
+                $scope.blockedIPs[ipAddress] = true;
+                notifyUser(
+                    'IP Address Banned',
+                    'IP address ' + ipAddress + ' has been permanently banned and added to the firewall.',
+                    'success'
+                );
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            } else {
+                var errorMsg = 'Failed to block IP address';
+                if (responseData && responseData.error_message) {
+                    errorMsg = responseData.error_message;
+                } else if (responseData && responseData.error) {
+                    errorMsg = responseData.error;
+                } else if (responseData && responseData.message) {
+                    errorMsg = responseData.message;
+                }
+                notifyUser('Error', errorMsg, 'error');
+            }
+        }, function (err) {
+            $scope.blockingIP = null;
+            var errorMessage = 'Failed to block IP address';
+            var errData = err.data;
+            if (typeof errData === 'string') {
+                errData = parseBanResponse(errData);
+            }
+            if (errData && typeof errData === 'object') {
+                errorMessage = errData.error_message || errData.error || errData.message || errorMessage;
+            } else if (err.status) {
+                errorMessage = 'HTTP ' + err.status + ': ' + errorMessage;
+            }
+            notifyUser('Error', errorMessage, 'error');
+        });
+    }
     
-    $scope.analyzeSSHSecurity = function() {
+    $scope.analyzeSSHSecurity = function(showFeedback) {
         $scope.loadingSecurityAnalysis = true;
         $scope.showAddonRequired = false;
-        $http.post('/base/analyzeSSHSecurity', {}).then(function (response) {
+        $http.post('/base/analyzeSSHSecurity', {}, {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        }).then(function (response) {
             $scope.loadingSecurityAnalysis = false;
             if (response.data) {
                 if (response.data.addon_required) {
                     $scope.showAddonRequired = true;
                     $scope.addonInfo = response.data;
                     $scope.securityAlerts = [];
+                    if (showFeedback) {
+                        notifyUser(
+                            'SSH Security Analysis',
+                            'This feature requires CyberPanel Addons.',
+                            'info'
+                        );
+                    }
                 } else if (response.data.status === 1) {
-                    $scope.securityAlerts = response.data.alerts;
+                    var alerts = response.data.alerts || [];
+                    $scope.securityAlerts = alerts;
                     $scope.showAddonRequired = false;
+                    if (showFeedback) {
+                        if (alerts.length === 0) {
+                            notifyUser(
+                                'Analysis complete',
+                                'No security threats detected in recent SSH logs.',
+                                'success'
+                            );
+                        } else {
+                            notifyUser(
+                                'Analysis complete',
+                                alerts.length + ' security alert' + (alerts.length === 1 ? '' : 's') + ' found.',
+                                'success'
+                            );
+                        }
+                    }
+                } else if (showFeedback) {
+                    var failMsg = response.data.error || response.data.error_message || 'Security analysis failed.';
+                    notifyUser('Error', failMsg, 'error');
                 }
+            } else if (showFeedback) {
+                notifyUser('Error', 'Empty response from security analysis.', 'error');
             }
         }, function (err) {
             $scope.loadingSecurityAnalysis = false;
+            if (showFeedback) {
+                var errorMessage = 'Failed to refresh SSH security analysis.';
+                if (err && err.data) {
+                    if (typeof err.data === 'object') {
+                        errorMessage = err.data.error || err.data.error_message || errorMessage;
+                    }
+                } else if (err && err.status) {
+                    errorMessage = 'HTTP ' + err.status + ': ' + errorMessage;
+                }
+                notifyUser('Error', errorMessage, 'error');
+            }
         });
     };
-    
-    $scope.blockIPAddress = function(ipAddress) {
-        if (!$scope.blockingIP) {
-            $scope.blockingIP = ipAddress;
-            
-            var data = {
-                ip_address: ipAddress
-            };
-            
-            var config = {
-                headers: {
-                    'X-CSRFToken': getCookie('csrftoken')
-                }
-            };
-            
-            $http.post('/base/blockIPAddress', data, config).then(function (response) {
-                $scope.blockingIP = null;
-                if (response.data && response.data.status === 1) {
-                    // Mark IP as blocked
-                    $scope.blockedIPs[ipAddress] = true;
-                    
-                    // Show success notification
-                    new PNotify({
-                        title: 'Success',
-                        text: `IP address ${ipAddress} has been blocked successfully using ${response.data.firewall.toUpperCase()}`,
-                        type: 'success',
-                        delay: 5000
-                    });
-                    
-                    // Refresh security analysis to update alerts
-                    $scope.analyzeSSHSecurity();
-                } else {
-                    // Show error notification
-                    new PNotify({
-                        title: 'Error',
-                        text: response.data && response.data.error ? response.data.error : 'Failed to block IP address',
-                        type: 'error',
-                        delay: 5000
-                    });
-                }
-            }, function (err) {
-                $scope.blockingIP = null;
-                var errorMessage = 'Failed to block IP address';
-                if (err.data && err.data.error) {
-                    errorMessage = err.data.error;
-                } else if (err.data && err.data.message) {
-                    errorMessage = err.data.message;
-                }
-                
-                new PNotify({
-                    title: 'Error',
-                    text: errorMessage,
-                    type: 'error',
-                    delay: 5000
-                });
-            });
+
+    // Manual button: reload SSH logs, then run analysis with a result toast
+    $scope.refreshSSHSecurityAnalysis = function() {
+        if ($scope.loadingSecurityAnalysis || $scope.loadingSSHLogs) {
+            return;
         }
+        $scope.loadingSSHLogs = true;
+        $scope.loadingSecurityAnalysis = true;
+        $http.get('/base/getRecentSSHLogs').then(function (response) {
+            $scope.loadingSSHLogs = false;
+            if (response.data && response.data.logs && Array.isArray(response.data.logs)) {
+                $scope.sshLogs = response.data.logs;
+                $scope.sshLogsCurrentPage = 1;
+                $scope.sshLogsGoToPage = 1;
+                $scope.updateSSHLogsPaginated();
+            } else {
+                $scope.sshLogs = [];
+                $scope.sshLogsPaginated = [];
+            }
+            $scope.analyzeSSHSecurity(true);
+        }, function (err) {
+            $scope.loadingSSHLogs = false;
+            notifyUser('Error', 'Failed to refresh SSH logs before analysis.', 'error');
+            $scope.analyzeSSHSecurity(true);
+        });
+    };
+
+    $scope.blockIPAddress = function(ipAddress) {
+        banIPAddress(
+            ipAddress,
+            'Brute force attack detected from SSH Security Analysis',
+            function () {
+                $scope.analyzeSSHSecurity(false);
+            }
+        );
+    };
+
+    $scope.banIPFromSSHLog = function(ipAddress) {
+        banIPAddress(
+            ipAddress,
+            'Suspicious activity detected from SSH logs',
+            function () {
+                $scope.refreshSSHLogs();
+            }
+        );
     };
 
     // Initial fetch
     $scope.refreshTopProcesses();
     $scope.refreshSSHLogins();
     $scope.refreshSSHLogs();
-
     // Chart.js chart objects
     var trafficChart, diskIOChart, cpuChart;
     // Data arrays for live graphs
@@ -1232,12 +1388,19 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     // For rate calculation
     var lastRx = null, lastTx = null, lastDiskRead = null, lastDiskWrite = null, lastCPU = null;
     var lastCPUTimes = null;
-    var pollInterval = 2000; // ms
+    // Keep polls sparse: lscpd WSGI pool is small (often 5). Overlapping 2s
+    // polls of traffic/disk/cpu/top saturate workers and cause OLS 503 HTML.
+    var pollInterval = 5000; // ms
+    var topProcessesEvery = 3; // every N chart polls
+    var pollAllTicks = 0;
     var maxPoints = 30;
+    var pollInFlight = false;
+    var pollBackoffMs = 0;
+    var pollTimer = null;
 
     function pollDashboardStats() {
-        $http.get('/base/getDashboardStats').then(function(response) {
-            if (response.data.status === 1) {
+        return $http.get('/base/getDashboardStats').then(function(response) {
+            if (response.data && response.data.status === 1) {
                 $scope.totalUsers = response.data.total_users;
                 $scope.totalSites = response.data.total_sites;
                 $scope.totalWPSites = response.data.total_wp_sites;
@@ -1246,14 +1409,15 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                 $scope.totalFTPUsers = response.data.total_ftp_users;
                 $scope.statsLoaded = true;
             }
-        });
+        }, function() { /* ignore transient errors */ });
     }
 
     function pollTraffic() {
-        console.log('pollTraffic called');
-        $http.get('/base/getTrafficStats').then(function(response) {
+        return $http.get('/base/getTrafficStats').then(function(response) {
+            if (!response.data || typeof response.data !== 'object') {
+                return;
+            }
             if (response.data.admin_only) {
-                // Hide chart for non-admin users
                 $scope.hideSystemCharts = true;
                 return;
             }
@@ -1275,10 +1439,8 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                         trafficChart.data.datasets[0].data = rxData.slice();
                         trafficChart.data.datasets[1].data = txData.slice();
                         trafficChart.update();
-                        console.log('trafficChart updated:', trafficChart.data.labels, trafficChart.data.datasets[0].data, trafficChart.data.datasets[1].data);
                     }
                 } else {
-                    // First poll, push zero data point
                     trafficLabels.push(now.toLocaleTimeString());
                     rxData.push(0);
                     txData.push(0);
@@ -1287,27 +1449,25 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                         trafficChart.data.datasets[0].data = rxData.slice();
                         trafficChart.data.datasets[1].data = txData.slice();
                         trafficChart.update();
-                        console.log('trafficChart first update:', trafficChart.data.labels, trafficChart.data.datasets[0].data, trafficChart.data.datasets[1].data);
                         setTimeout(function() {
                             if (window.trafficChart) {
                                 window.trafficChart.resize();
                                 window.trafficChart.update();
-                                console.log('trafficChart forced resize/update after first poll.');
                             }
                         }, 1000);
                     }
                 }
                 lastRx = rx; lastTx = tx;
-            } else {
-                console.log('pollTraffic error or no data:', response);
             }
-        });
+        }, function() { /* ignore 503/HTML */ });
     }
 
     function pollDiskIO() {
-        $http.get('/base/getDiskIOStats').then(function(response) {
+        return $http.get('/base/getDiskIOStats').then(function(response) {
+            if (!response.data || typeof response.data !== 'object') {
+                return;
+            }
             if (response.data.admin_only) {
-                // Hide chart for non-admin users
                 $scope.hideSystemCharts = true;
                 return;
             }
@@ -1331,7 +1491,6 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                         diskIOChart.update();
                     }
                 } else {
-                    // First poll, push zero data point
                     diskLabels.push(now.toLocaleTimeString());
                     readData.push(0);
                     writeData.push(0);
@@ -1344,13 +1503,15 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                 }
                 lastDiskRead = read; lastDiskWrite = write;
             }
-        });
+        }, function() { /* ignore 503/HTML */ });
     }
 
     function pollCPU() {
-        $http.get('/base/getCPULoadGraph').then(function(response) {
+        return $http.get('/base/getCPULoadGraph').then(function(response) {
+            if (!response.data || typeof response.data !== 'object') {
+                return;
+            }
             if (response.data.admin_only) {
-                // Hide chart for non-admin users
                 $scope.hideSystemCharts = true;
                 return;
             }
@@ -1376,7 +1537,6 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                         cpuChart.update();
                     }
                 } else {
-                    // First poll, push zero data point
                     cpuLabels.push(now.toLocaleTimeString());
                     cpuUsageData.push(0);
                     if (cpuChart) {
@@ -1387,11 +1547,10 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
                 }
                 lastCPUTimes = cpuTimes;
             }
-        });
+        }, function() { /* ignore 503/HTML */ });
     }
 
     function setupCharts() {
-        console.log('setupCharts called, initializing charts...');
         var trafficCtx = document.getElementById('trafficChart').getContext('2d');
         trafficChart = new Chart(trafficCtx, {
             type: 'line',
@@ -1682,19 +1841,41 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
             $scope.hideSystemCharts = true;
         });
         
-        // Immediately poll once so stats are updated on first load
-        pollDashboardStats();
-        pollTraffic();
-        pollDiskIO();
-        pollCPU();
-        // Start polling
+        // Start a single non-overlapping poll loop (avoid stacking $timeout storms).
+        function scheduleNextPoll(delay) {
+            if (pollTimer) {
+                $timeout.cancel(pollTimer);
+            }
+            pollTimer = $timeout(pollAll, delay || pollInterval);
+        }
+
         function pollAll() {
-            pollDashboardStats();
-            pollTraffic();
-            pollDiskIO();
-            pollCPU();
-            $scope.refreshTopProcesses();
-            $timeout(pollAll, pollInterval);
+            if (pollInFlight) {
+                scheduleNextPoll(pollInterval);
+                return;
+            }
+            pollInFlight = true;
+            pollAllTicks += 1;
+            var jobs = [
+                pollDashboardStats(),
+                pollTraffic(),
+                pollDiskIO(),
+                pollCPU()
+            ];
+            if (pollAllTicks === 1 || (pollAllTicks % topProcessesEvery) === 0) {
+                jobs.push($scope.refreshTopProcesses());
+            }
+            Promise.all(jobs.map(function(p) {
+                return Promise.resolve(p).catch(function() { return null; });
+            })).then(function() {
+                pollInFlight = false;
+                pollBackoffMs = 0;
+                scheduleNextPoll(pollInterval);
+            }, function() {
+                pollInFlight = false;
+                pollBackoffMs = Math.min((pollBackoffMs || pollInterval) * 2, 30000);
+                scheduleNextPoll(pollBackoffMs);
+            });
         }
         pollAll();
     }, 500);

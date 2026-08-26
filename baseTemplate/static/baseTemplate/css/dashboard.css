@@ -82,9 +82,11 @@
     .progress-bar-container {
         width: 100%;
         height: 8px;
-        background: var(--border-color, #e8e9ff);
+        background: var(--bg-muted, #f6f7f9);
+        border: 1px solid var(--border-color, #e7e9ee);
         border-radius: 4px;
         overflow: hidden;
+        box-sizing: border-box;
     }
     
     .progress-bar {
@@ -800,7 +802,13 @@ a.insight-card:hover {
 .stat-card-title { letter-spacing: 0.6px; }
 .stat-card-value { font-weight: 700; }
 
-.progress-bar-container { height: 7px; border-radius: 6px; }
+.progress-bar-container {
+    height: 8px;
+    border-radius: 6px;
+    background: var(--bg-muted, #f6f7f9);
+    border: 1px solid var(--border-color, #e7e9ee);
+    box-sizing: border-box;
+}
 .progress-bar { border-radius: 6px; }
 
 /* Insight cards: smaller, cleaner hierarchy */
@@ -821,3 +829,68 @@ a.insight-card:hover {
     background: var(--accent-color);
 }
 .activity-tab.active { box-shadow: none; }
+
+/* Refresh Analysis: force high-contrast label on accent in light and dark */
+.ssh-refresh-analysis-btn,
+#main-content .ssh-refresh-analysis-btn.btn-primary,
+.activity-section .ssh-refresh-analysis-btn.btn-primary {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    border-radius: 8px !important;
+    border: none !important;
+    background: var(--accent-color, #5b5fcf) !important;
+    color: #ffffff !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+}
+.ssh-refresh-analysis-btn:hover,
+.ssh-refresh-analysis-btn:focus,
+#main-content .ssh-refresh-analysis-btn.btn-primary:hover,
+#main-content .ssh-refresh-analysis-btn.btn-primary:focus {
+    background: var(--accent-hover, #4f46e5) !important;
+    color: #ffffff !important;
+}
+.ssh-refresh-analysis-btn:disabled,
+.ssh-refresh-analysis-btn[disabled],
+#main-content .ssh-refresh-analysis-btn.btn-primary:disabled {
+    background: var(--accent-color, #5b5fcf) !important;
+    color: #ffffff !important;
+    opacity: 0.85 !important;
+}
+.ssh-refresh-analysis-btn i,
+.ssh-refresh-analysis-btn span,
+#main-content .ssh-refresh-analysis-btn.btn-primary i,
+#main-content .ssh-refresh-analysis-btn.btn-primary span {
+    color: #ffffff !important;
+}
+
+[data-theme="dark"] .ssh-refresh-analysis-btn,
+[data-theme="dark"] #main-content .ssh-refresh-analysis-btn.btn-primary,
+[data-theme="dark"] .activity-section .ssh-refresh-analysis-btn.btn-primary {
+    background: var(--accent-color, #818cf8) !important;
+    color: #ffffff !important;
+}
+[data-theme="dark"] .ssh-refresh-analysis-btn:hover,
+[data-theme="dark"] .ssh-refresh-analysis-btn:focus,
+[data-theme="dark"] #main-content .ssh-refresh-analysis-btn.btn-primary:hover,
+[data-theme="dark"] #main-content .ssh-refresh-analysis-btn.btn-primary:focus {
+    background: var(--accent-hover, #6366f1) !important;
+    color: #ffffff !important;
+}
+[data-theme="dark"] .ssh-refresh-analysis-btn:hover i,
+[data-theme="dark"] .ssh-refresh-analysis-btn:hover span,
+[data-theme="dark"] .ssh-refresh-analysis-btn:focus i,
+[data-theme="dark"] .ssh-refresh-analysis-btn:focus span {
+    color: #ffffff !important;
+}
+[data-theme="dark"] .ssh-refresh-analysis-btn i,
+[data-theme="dark"] .ssh-refresh-analysis-btn span,
+[data-theme="dark"] #main-content .ssh-refresh-analysis-btn.btn-primary i,
+[data-theme="dark"] #main-content .ssh-refresh-analysis-btn.btn-primary span {
+    color: #ffffff !important;
+}
