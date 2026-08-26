@@ -44,11 +44,6 @@ class DNS:
 
         return CloudFlare.CloudFlare(email=email, key=api_secret)
 
-        try:
-            return CloudFlare.CloudFlare(email=email, key=api_secret)
-        except Exception:
-            return CloudFlare.CloudFlare(token=api_secret)
-
     nsd_base = "/etc/nsd/nsd.conf"
     zones_base_dir = "/usr/local/lsws/conf/zones/"
     create_zone_dir = "/usr/local/lsws/conf/zones"
