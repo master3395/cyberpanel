@@ -4,7 +4,7 @@
 {% block title %}{% trans "Dashboard - CyberPanel" %}{% endblock %}
 
 {% block header_scripts %}
-<link rel="stylesheet" type="text/css" href="{% static 'baseTemplate/css/dashboard.css' %}?v={{ CP_VERSION }}">
+<link rel="stylesheet" type="text/css" href="{% static 'baseTemplate/css/dashboard.css' %}?v={{ CP_VERSION }}&dash=2">
 {% endblock %}
 
 {# Dashboard uses controllers from system-status.js (loaded in head) — skip the 1.1MB module bundle #}
@@ -42,10 +42,12 @@
             <span class="cp-qa-text"><span class="cp-qa-title">{% trans "Back Up" %}</span><span class="cp-qa-sub">{% trans "Protect your data" %}</span></span>
         </a>
         {% endif %}
+        {% if not cosmetic.HidePromotions %}
         <a class="cp-qa-card" href="{% url 'buildServices' %}">
             <span class="cp-qa-ic" style="background:linear-gradient(135deg,#6366f1,#a855f7);color:#fff;"><i class="fas fa-rocket"></i></span>
             <span class="cp-qa-text"><span class="cp-qa-title">{% trans "Build Services" %}</span><span class="cp-qa-sub">{% trans "Let us build it" %}</span></span>
         </a>
+        {% endif %}
     </div>
 
     <!-- Onboarding checklist (shown when there are no websites yet) -->
@@ -87,6 +89,7 @@
         </div>
     </div>
 
+    {% if not cosmetic.HidePromotions %}
     <!-- Dismissible Build Services promo card -->
     <div class="cp-build-card" id="cp-build-card" hidden>
         <button class="cp-build-x" type="button" id="cp-build-card-x" aria-label="{% trans 'Dismiss' %}"><i class="fas fa-times"></i></button>
@@ -110,6 +113,7 @@
         } catch (e) {}
     })();
     </script>
+    {% endif %}
 
     <!-- Overview Section -->
     <div class="overview-section">
@@ -161,7 +165,8 @@
                 </div>
                 <div class="stat-card-info">
                     <span class="cp-skeleton cp-skeleton-line" ng-if="ramTotalMB === undefined" style="max-width:160px;" aria-hidden="true"></span>
-                    <span ng-if="ramTotalMB !== undefined">You've {$ ramTotalMB $} MB Memory.</span>
+                    <span ng-if="ramTotalLabel !== undefined">You've {$ ramTotalLabel $} Memory.</span>
+                    <span ng-if="ramTotalLabel === undefined && ramTotalMB !== undefined">You've {$ ramTotalMB $} MB Memory.</span>
                 </div>
             </div>
 
@@ -182,7 +187,8 @@
                 </div>
                 <div class="stat-card-info">
                     <span class="cp-skeleton cp-skeleton-line" ng-if="diskFreeGB === undefined" style="max-width:200px;" aria-hidden="true"></span>
-                    <span ng-if="diskFreeGB !== undefined">You've {$ diskFreeGB $} GB remaining out of {$ diskTotalGB $} GB.</span>
+                    <span ng-if="diskFreeLabel !== undefined">You've {$ diskFreeLabel $} remaining out of {$ diskTotalLabel $}.</span>
+                    <span ng-if="diskFreeLabel === undefined && diskFreeGB !== undefined">You've {$ diskFreeGB $} GB remaining out of {$ diskTotalGB $} GB.</span>
                 </div>
             </div>
         </div>
@@ -363,9 +369,14 @@
                 <h3 style="margin: 0; font-size: 14px; font-weight: 600; color: #2f3640; text-transform: uppercase; letter-spacing: 0.5px;">
                     {% trans "SSH Security Analysis" %}
                 </h3>
-                <button ng-click="analyzeSSHSecurity()" class="btn-primary" style="padding: 6px 16px; font-size: 12px;">
-                    <i class="fas fa-sync-alt" ng-class="{'fa-spin': loadingSecurityAnalysis}"></i>
-                    {% trans "Refresh Analysis" %}
+                <button type="button"
+                        ng-click="refreshSSHSecurityAnalysis()"
+                        ng-disabled="loadingSecurityAnalysis"
+                        class="btn-primary ssh-refresh-analysis-btn"
+                        ng-style="loadingSecurityAnalysis && {'opacity': '0.85', 'cursor': 'wait'}">
+                    <i class="fas fa-sync-alt" ng-class="{'fa-spin': loadingSecurityAnalysis}" aria-hidden="true"></i>
+                    <span ng-if="!loadingSecurityAnalysis">{% trans "Refresh Analysis" %}</span>
+                    <span ng-if="loadingSecurityAnalysis">{% trans "Refreshing..." %}</span>
                 </button>
             </div>
             
@@ -435,21 +446,23 @@
                                     <strong style="font-size: 12px; color: #1e293b;">Recommendation:</strong>
                                     <p style="margin: 4px 0 0 0; font-size: 12px; color: #475569; white-space: pre-line;">{$ alert.recommendation $}</p>
                                 </div>
-                                <!-- Add to Firewall Button for Brute Force Attacks -->
-                                <div ng-if="alert.title === 'Brute Force Attack Detected' && alert.details && alert.details['IP Address']" style="margin-top: 12px;">
-                                    <button ng-click="blockIPAddress(alert.details['IP Address'])" 
-                                            ng-disabled="blockingIP === alert.details['IP Address']"
+                                <div ng-if="alert.details && (alert.details['IP Address'] || alert.details['Top IP'])" style="margin-top: 12px;">
+                                    <button ng-click="blockIPAddress(alert.details['IP Address'] || alert.details['Top IP']); $event.stopPropagation()"
+                                            ng-disabled="blockingIP === (alert.details['IP Address'] || alert.details['Top IP'])"
                                             style="background: #dc2626; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;"
-                                            onmouseover="this.style.background='#b91c1c'" 
+                                            onmouseover="this.style.background='#b91c1c'"
                                             onmouseout="this.style.background='#dc2626'">
-                                        <i class="fas fa-ban" ng-if="blockingIP !== alert.details['IP Address']"></i>
-                                        <i class="fas fa-spinner fa-spin" ng-if="blockingIP === alert.details['IP Address']"></i>
-                                        <span ng-if="blockingIP !== alert.details['IP Address']">Block IP</span>
-                                        <span ng-if="blockingIP === alert.details['IP Address']">Blocking...</span>
+                                        <i class="fas fa-ban" ng-if="blockingIP !== (alert.details['IP Address'] || alert.details['Top IP'])"></i>
+                                        <i class="fas fa-spinner fa-spin" ng-if="blockingIP === (alert.details['IP Address'] || alert.details['Top IP'])"></i>
+                                        <span ng-if="blockingIP !== (alert.details['IP Address'] || alert.details['Top IP'])">{% trans "Ban IP Permanently" %}</span>
+                                        <span ng-if="blockingIP === (alert.details['IP Address'] || alert.details['Top IP'])">{% trans "Banning..." %}</span>
                                     </button>
-                                    <span ng-if="blockedIPs && blockedIPs[alert.details['IP Address']]" 
+                                    <a href="/firewall/" target="_blank" rel="noopener" style="margin-left: 10px; color: #5b5fcf; font-size: 12px; text-decoration: none;">
+                                        <i class="fas fa-external-link-alt"></i> {% trans "Manage in Firewall" %}
+                                    </a>
+                                    <span ng-if="blockedIPs && blockedIPs[alert.details['IP Address'] || alert.details['Top IP']]"
                                           style="margin-left: 10px; color: #10b981; font-size: 12px; font-weight: 600;">
-                                        <i class="fas fa-check-circle"></i> Blocked
+                                        <i class="fas fa-check-circle"></i> {% trans "Blocked" %}
                                     </span>
                                 </div>
                             </div>
@@ -475,12 +488,41 @@
                     <tr>
                         <th>{% trans "TIMESTAMP" %}</th>
                         <th>{% trans "MESSAGE" %}</th>
+                        <th>{% trans "IP ADDRESS" %}</th>
+                        <th>{% trans "ACTIONS" %}</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr ng-repeat="log in sshLogs">
                         <td><strong>{$ log.timestamp $}</strong></td>
                         <td><code style="background: #f0f0ff; padding: 4px 8px; border-radius: 4px; font-size: 11px; display: inline-block; word-break: break-word; overflow-wrap: break-word;">{$ log.message $}</code></td>
+                        <td>
+                            <span ng-if="log.ip_address" style="font-family: monospace; color: #5b5fcf; font-weight: 600;">{$ log.ip_address $}</span>
+                            <span ng-if="!log.ip_address" style="color: #8893a7;">-</span>
+                        </td>
+                        <td>
+                            <button ng-if="log.ip_address && blockingIP !== log.ip_address && !blockedIPs[log.ip_address]"
+                                    ng-click="banIPFromSSHLog(log.ip_address)"
+                                    style="background: #dc2626; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;"
+                                    onmouseover="this.style.background='#b91c1c'"
+                                    onmouseout="this.style.background='#dc2626'"
+                                    title="{% trans 'Ban this IP address permanently' %}">
+                                <i class="fas fa-ban"></i>
+                                {% trans "Ban IP" %}
+                            </button>
+                            <button ng-if="log.ip_address && blockingIP === log.ip_address"
+                                    disabled
+                                    style="background: #9ca3af; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: not-allowed; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                {% trans "Banning..." %}
+                            </button>
+                            <span ng-if="log.ip_address && blockedIPs[log.ip_address]"
+                                  style="color: #10b981; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-check-circle"></i>
+                                {% trans "Banned" %}
+                            </span>
+                            <span ng-if="!log.ip_address" style="color: #8893a7; font-size: 11px;">-</span>
+                        </td>
                     </tr>
                 </tbody>
             </table>

@@ -16,7 +16,6 @@ import argparse
 import re
 import ipaddress
 from plogical.processUtilities import ProcessUtilities
-from plogical.sshKeyUtilities import delete_authorized_key
 
 # firewalld rich-rule values are embedded inside a single-quoted shell argument,
 # so they cannot be passed through shlex.quote. Validate them against strict
@@ -131,6 +130,211 @@ class FirewallUtilities:
         return 1
 
     @staticmethod
+    def _validateBlockIP(ip_address):
+        """Return normalized IP string or None if invalid / reserved."""
+        try:
+            raw = str(ip_address or '').strip()
+            if '/' in raw:
+                net = ipaddress.ip_network(raw, strict=False)
+                if net.version != 4:
+                    return None
+                return str(net)
+            ip_obj = ipaddress.ip_address(raw)
+            if ip_obj.version != 4:
+                return None
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved or ip_obj.is_multicast:
+                return None
+            return str(ip_obj)
+        except Exception:
+            return None
+
+    @staticmethod
+    def blockIP(ip_address, reason="Manual block", do_reload=True):
+        """
+        Block an IP address using firewalld (rich rule drop).
+        Returns (success: bool, message: str).
+
+        do_reload: when False, only add permanent (+ runtime) rules; caller
+        should reload once after a batch (avoids wedging LSCPD under load).
+        """
+        try:
+            ip_address = FirewallUtilities._validateBlockIP(ip_address)
+            if not ip_address:
+                return False, 'Invalid or reserved IP address'
+
+            # Prefer CSF only when already installed (never auto-install here)
+            if os.path.exists('/usr/sbin/csf') and os.path.exists('/etc/csf/csf.conf'):
+                try:
+                    from plogical.csf import CSF
+                    CSF.blockIP(ip_address)
+                    logging.CyberCPLogFileWriter.writeToFile(
+                        "Blocked IP via CSF: %s - Reason: %s" % (ip_address, reason)
+                    )
+                    return True, "IP %s blocked successfully" % ip_address
+                except Exception as csf_err:
+                    logging.CyberCPLogFileWriter.writeToFile(
+                        "CSF.blockIP failed for %s, falling back to firewalld: %s"
+                        % (ip_address, str(csf_err))
+                    )
+
+            ruleFamily = 'rule family="ipv4"'
+            sourceAddress = 'source address="' + ip_address + '"'
+            action = 'drop'
+            rich = ruleFamily + " " + sourceAddress + " " + action
+
+            logging.CyberCPLogFileWriter.writeToFile(
+                "Blocking IP address: %s - Reason: %s" % (ip_address, reason)
+            )
+
+            # Runtime drop so the ban applies before a deferred reload
+            ProcessUtilities.executioner(
+                "firewall-cmd --zone=public --add-rich-rule='" + rich + "'"
+            )
+            result = ProcessUtilities.executioner(
+                "firewall-cmd --permanent --zone=public --add-rich-rule='" + rich + "'"
+            )
+            if result == 1:
+                logging.CyberCPLogFileWriter.writeToFile("Successfully blocked IP: %s" % ip_address)
+                if do_reload:
+                    ProcessUtilities.executioner('firewall-cmd --reload')
+                block_log_path = "/usr/local/CyberCP/data/blocked_ips.log"
+                try:
+                    os.makedirs(os.path.dirname(block_log_path), exist_ok=True)
+                    with open(block_log_path, "a") as f:
+                        from datetime import datetime
+                        f.write(
+                            "%s - %s - %s\n"
+                            % (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), ip_address, reason)
+                        )
+                except Exception as log_err:
+                    logging.CyberCPLogFileWriter.writeToFile(
+                        "Warning: could not write blocked_ips.log: %s" % log_err
+                    )
+                return True, "IP %s blocked successfully" % ip_address
+
+            logging.CyberCPLogFileWriter.writeToFile(
+                "Failed to block IP: %s (executioner returned %s)" % (ip_address, result)
+            )
+            return False, "Failed to block IP: %s" % ip_address
+
+        except Exception as e:
+            logging.CyberCPLogFileWriter.writeToFile("Error blocking IP %s: %s" % (ip_address, str(e)))
+            return False, "Error blocking IP: %s" % str(e)
+
+    @staticmethod
+    def unblockIP(ip_address):
+        """
+        Unblock an IP address by removing the firewalld drop rule.
+        Returns (success: bool, message: str).
+        """
+        try:
+            try:
+                ip_obj = ipaddress.ip_address(str(ip_address).strip().split('/')[0])
+                if ip_obj.version != 4:
+                    return False, 'Only IPv4 unblock is supported here'
+                ip_address = str(ip_obj)
+            except Exception:
+                return False, 'Invalid IP address'
+
+            if os.path.exists('/usr/sbin/csf') and os.path.exists('/etc/csf/csf.conf'):
+                try:
+                    command = "csf -dr %s" % ip_address
+                    ProcessUtilities.executioner(command)
+                    logging.CyberCPLogFileWriter.writeToFile("Unblocked IP via CSF: %s" % ip_address)
+                    return True, "IP %s unblocked successfully" % ip_address
+                except Exception as csf_err:
+                    logging.CyberCPLogFileWriter.writeToFile(
+                        "CSF unblock failed for %s, falling back to firewalld: %s"
+                        % (ip_address, str(csf_err))
+                    )
+
+            ruleFamily = 'rule family="ipv4"'
+            sourceAddress = 'source address="' + ip_address + '"'
+            action = 'drop'
+
+            command = (
+                "firewall-cmd --permanent --zone=public --remove-rich-rule='"
+                + ruleFamily + " " + sourceAddress + " " + action + "'"
+            )
+
+            logging.CyberCPLogFileWriter.writeToFile("Unblocking IP address: %s" % ip_address)
+
+            result = ProcessUtilities.executioner(command)
+            if result == 1:
+                logging.CyberCPLogFileWriter.writeToFile("Successfully unblocked IP: %s" % ip_address)
+                ProcessUtilities.executioner('firewall-cmd --reload')
+                return True, "IP %s unblocked successfully" % ip_address
+
+            logging.CyberCPLogFileWriter.writeToFile(
+                "Failed to unblock IP: %s (executioner returned %s)" % (ip_address, result)
+            )
+            return False, "Failed to unblock IP: %s" % ip_address
+
+        except Exception as e:
+            logging.CyberCPLogFileWriter.writeToFile("Error unblocking IP %s: %s" % (ip_address, str(e)))
+            return False, "Error unblocking IP: %s" % str(e)
+
+    @staticmethod
+    def isIPBlocked(ip_address):
+        """Check if an IP address is currently blocked via firewalld rich rules."""
+        try:
+            ip_address = str(ip_address).strip()
+            ipaddress.ip_address(ip_address.split('/')[0])
+            command = "firewall-cmd --list-rich-rules"
+            output = ProcessUtilities.outputExecutioner(command)
+            if not output:
+                return False
+            needle = 'source address="%s"' % ip_address
+            for line in str(output).splitlines():
+                if needle in line and 'drop' in line:
+                    return True
+            return False
+        except Exception as e:
+            logging.CyberCPLogFileWriter.writeToFile(
+                "Error checking if IP %s is blocked: %s" % (ip_address, str(e))
+            )
+            return False
+
+    @staticmethod
+    def closeConnectionsFromIP(ip_address):
+        """
+        Drop existing connection-tracking entries for this source IP when conntrack is available.
+        """
+        try:
+            ip_address = str(ip_address).strip()
+            ipaddress.ip_address(ip_address.split('/')[0])
+            command = "conntrack -D -s %s 2>/dev/null" % ip_address
+            result = ProcessUtilities.executioner(command)
+            logging.CyberCPLogFileWriter.writeToFile(
+                "closeConnectionsFromIP %s: conntrack returned %s" % (ip_address, result)
+            )
+            return True, "Connections from %s have been closed" % ip_address
+        except Exception as e:
+            logging.CyberCPLogFileWriter.writeToFile(
+                "closeConnectionsFromIP error for %s: %s" % (ip_address, str(e))
+            )
+            return False, str(e)
+
+    @staticmethod
+    def getBlockedIPs():
+        """Get list of currently blocked IPv4 addresses from firewalld rich rules."""
+        try:
+            command = "firewall-cmd --list-rich-rules"
+            output = ProcessUtilities.outputExecutioner(command)
+            if not output:
+                return []
+            blocked_ips = []
+            for line in str(output).splitlines():
+                if 'drop' in line and 'source address=' in line:
+                    ip_match = re.search(r'source address="([^"]+)"', line)
+                    if ip_match:
+                        blocked_ips.append(ip_match.group(1))
+            return blocked_ips
+        except Exception as e:
+            logging.CyberCPLogFileWriter.writeToFile("Error getting blocked IPs: %s" % str(e))
+            return []
+
+    @staticmethod
     def saveSSHConfigs(type, sshPort, rootLogin):
         try:
             if type == "1":
@@ -224,15 +428,26 @@ class FirewallUtilities:
     @staticmethod
     def deleteSSHKey(key, path=None):
         try:
+            keyPart = key.split(" ")[1]
+
             if path == None:
                 pathToSSH = "/root/.ssh/authorized_keys"
             else:
                 pathToSSH = path
 
-            if delete_authorized_key(pathToSSH, key):
-                print("1,None")
-            else:
-                print("0,SSH key not found.")
+            data = open(pathToSSH, 'r').readlines()
+
+            writeToFile = open(pathToSSH, "w")
+
+            for items in data:
+                if items.find("ssh-rsa") > -1 and items.find(keyPart) > -1:
+                    continue
+                else:
+                    writeToFile.writelines(items)
+
+            writeToFile.close()
+
+            print("1,None")
 
         except BaseException as msg:
             print("0," + str(msg))
