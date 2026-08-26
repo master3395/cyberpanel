@@ -17,28 +17,47 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 2
 fi
 
-count_severity() {
+count_fixable() {
   local sev="$1"
   jq -r --arg s "$sev" '
-    [.Results[]?.Vulnerabilities[]? | select(.Severity == $s)] | length
+    [.Results[]?.Vulnerabilities[]?
+      | select(.Severity == $s)
+      | select((.FixedVersion // "") != "")
+    ] | length
   ' "$REPORT"
 }
 
-CRIT="$(count_severity CRITICAL)"
-HIGH="$(count_severity HIGH)"
+count_unfixed() {
+  local sev="$1"
+  jq -r --arg s "$sev" '
+    [.Results[]?.Vulnerabilities[]?
+      | select(.Severity == $s)
+      | select((.FixedVersion // "") == "")
+    ] | length
+  ' "$REPORT"
+}
 
-echo "Trivy policy for ${TAG}: critical=${CRIT} high=${HIGH}"
+CRIT="$(count_fixable CRITICAL)"
+HIGH="$(count_fixable HIGH)"
+CRIT_UNFIXED="$(count_unfixed CRITICAL)"
+HIGH_UNFIXED="$(count_unfixed HIGH)"
+
+echo "Trivy policy for ${TAG}: fixable critical=${CRIT} high=${HIGH}; unfixed critical=${CRIT_UNFIXED} high=${HIGH_UNFIXED}"
 
 if [ "$CRIT" -gt 0 ]; then
-  echo "FAIL: critical vulnerabilities must be 0 (found ${CRIT})" >&2
+  echo "FAIL: fixable critical vulnerabilities must be 0 (found ${CRIT})" >&2
   exit 1
 fi
 
 for rec in $RECOMMENDED; do
   if [ "$TAG" = "$rec" ] && [ "$HIGH" -gt "$HIGH_LIMIT" ]; then
-    echo "FAIL: recommended tag ${TAG} high count ${HIGH} exceeds limit ${HIGH_LIMIT}" >&2
+    echo "FAIL: recommended tag ${TAG} fixable high count ${HIGH} exceeds limit ${HIGH_LIMIT}" >&2
     exit 1
   fi
 done
+
+if [ "$CRIT_UNFIXED" -gt 0 ] || [ "$HIGH_UNFIXED" -gt 0 ]; then
+  echo "WARN: unfixed findings remain (critical=${CRIT_UNFIXED} high=${HIGH_UNFIXED}); rebuild weekly and track Scout" >&2
+fi
 
 echo "PASS: vulnerability policy satisfied for ${TAG}"

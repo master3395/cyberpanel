@@ -82,8 +82,9 @@ bash refresh-base-digests.sh
 
 CI (`.github/workflows/docker-panel.yml`) scans every built tag with Trivy:
 
-- **Fail** on any **Critical** CVE
-- **Fail** on **High > 25** for recommended tags (`almalinux10`, `ubuntu2404`, `debian13`, `openeuler2203`)
+- **Fail** on any **fixable Critical** CVE (patched upstream but not in the image)
+- **Fail** on **fixable High > 25** for recommended tags (`almalinux10`, `ubuntu2404`, `debian13`, `openeuler2203`)
+- **Warn** on unfixed critical/high (no distro patch yet)
 - Rebuilds weekly (Monday 04:00 UTC) to pick up distro patches
 
 See [`DOCKER-PANEL-SECURITY.md`](DOCKER-PANEL-SECURITY.md) for Scout baseline and residual risk.

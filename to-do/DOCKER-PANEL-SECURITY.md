@@ -42,9 +42,9 @@ Sample packages (not CyberPanel app code): sqlite, glibc, openssl, perl, xz, vim
 
 ### CI policy
 
-- **Critical = 0** on every tag (build fails otherwise)
-- **High <= 25** on recommended tags: `almalinux10`, `ubuntu2404`, `debian13`, `openeuler2203`
-- Legacy tags may still report high counts until distro fixes land; monitor Scout and rebuild weekly
+- **Fixable Critical = 0** on every tag (build fails if a patched version exists and the image lacks it)
+- **Fixable High <= 25** on recommended tags: `almalinux10`, `ubuntu2404`, `debian13`, `openeuler2203`
+- **Unfixed** critical/high findings are logged as warnings (no upstream patch yet); track in Scout and rebuild weekly
 
 ## After rebuild checklist
 
