@@ -11,11 +11,19 @@ def installed(request):
     pluginList = []
 
     if os.path.exists(pluginPath):
-        for plugin in os.listdir(pluginPath):
-            data = {}
-            completePath = '/usr/local/CyberCP/' + plugin + '/meta.xml'
-            pluginMetaData = ElementTree.parse(completePath)
+        for plugin in sorted(os.listdir(pluginPath)):
+            pluginDir = os.path.join(pluginPath, plugin)
+            if not os.path.isdir(pluginDir) or plugin.startswith('_'):
+                continue
+            completePath = os.path.join('/usr/local/CyberCP', plugin, 'meta.xml')
+            if not os.path.isfile(completePath):
+                continue
+            try:
+                pluginMetaData = ElementTree.parse(completePath)
+            except ElementTree.ParseError:
+                continue
 
+            data = {}
             data['name'] = pluginMetaData.find('name').text
             data['type'] = pluginMetaData.find('type').text
             data['desc'] = pluginMetaData.find('description').text

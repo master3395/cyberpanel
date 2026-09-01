@@ -54,6 +54,28 @@ wm=$(curl -sk -o /dev/null -w '%{http_code}' "$PANEL/webmail/login" || echo 000)
 [[ "$wm" =~ ^(200|302)$ ]] && pass "webmail/login $wm" || fail "webmail/login $wm"
 panel
 
+log "=== PLUGIN STORE ==="
+cd "$LIVE" && python3 manage.py shell -c "
+from django.test import RequestFactory
+from django.contrib.sessions.middleware import SessionMiddleware
+from loginSystem.models import Administrator
+from pluginHolder import views
+adm = Administrator.objects.first()
+if not adm:
+    raise SystemExit('no admin')
+rf = RequestFactory()
+request = rf.get('/plugins/installed')
+middleware = SessionMiddleware(lambda r: None)
+middleware.process_request(request)
+request.session.save()
+request.session['userID'] = adm.pk
+request.session.save()
+response = views.installed(request)
+if response.status_code != 200:
+    raise SystemExit('plugins/installed status %s' % response.status_code)
+print('plugins/installed OK')
+" >>"$LOG" 2>&1 && pass "plugins/installed 200" || fail "plugins/installed"
+
 cd "$LIVE" && python3 manage.py check >>"$LOG" 2>&1 && pass "manage.py check" || fail "manage.py check"
 log "Log: $LOG"
 exit $FAIL
