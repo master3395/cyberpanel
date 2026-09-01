@@ -12,8 +12,6 @@
 
     <script>
         $(document).ready(function () {
-            $('[data-toggle="tooltip"]').tooltip();
-            // Ensure modal is hidden on page load
             $('#passwordProtectionModal').modal('hide');
         });
     </script>
@@ -220,11 +218,22 @@
             min-width: 0;
         }
         
+        .chevron-btn {
+            border: none;
+            background: transparent;
+            padding: 4px 6px;
+            margin: 0;
+            cursor: pointer;
+            line-height: 1;
+            color: inherit;
+        }
+
         .chevron {
             font-size: 14px;
             color: #8893a7;
             transition: transform 0.2s ease;
             min-width: 20px;
+            pointer-events: none;
         }
         
         .chevron.fa-chevron-down {
@@ -717,17 +726,17 @@
                     </div>
                     <div ng-repeat="web in WebSitesList track by $index">
                         <!-- Website Row -->
-                        <div class="website-row" ng-click="toggleSite(web)" title="Expand/collapse details">
+                        <div class="website-row" ng-click="toggleSite(web, $event)" title="Expand/collapse details">
                             <div class="row-left">
-                                <i class="fas chevron" ng-class="{'fa-chevron-down': isExpanded(web.domain), 'fa-chevron-right': !isExpanded(web.domain)}"></i>
+                                <button type="button" class="chevron-btn" ng-click="toggleSite(web, $event)" aria-label="Expand website preview">
+                                    <i class="fas chevron" ng-class="{'fa-chevron-down': isExpanded(web.domain), 'fa-chevron-right': !isExpanded(web.domain)}"></i>
+                                </button>
                                 <span class="domain" title="{$ web.domain $}">{$ web.domain $}</span>
                                 <span ng-if="web.loading" class="loading-indicator">
                                     <i class="fa fa-spinner fa-spin"></i>
                                 </span>
                                 <!-- SSL Status Badge -->
                                 <span ng-if="web.ssl" class="ssl-badge" ng-class="web.ssl.status" 
-                                      data-toggle="tooltip" 
-                                      data-placement="top"
                                       title="{$ getSslTooltip(web) $}">
                                     <i class="fas" ng-class="{
                                         'fa-lock': web.ssl.status === 'valid',
@@ -744,7 +753,7 @@
                                     <span ng-if="web.ssl.is_wildcard" class="wildcard-indicator" title="Wildcard SSL Certificate">*</span>
                                 </span>
                             </div>
-                            <div class="row-actions">
+                            <div class="row-actions" ng-click="$event.stopPropagation()">
                                 <a href="/websites/{$ web.domain $}/workspace" class="btn btn-primary btn-sm" title="{% trans 'Open site workspace' %}">
                                     <i class="fas fa-grip"></i> Manage
                                 </a>
@@ -938,6 +947,4 @@
 
 {% endblock %}
 
-{% block footer_scripts %}
-    <script src="{% static 'websiteFunctions/websiteFunctions.js' %}"></script>
-{% endblock %}
+{% block footer_scripts %}{% endblock %}
