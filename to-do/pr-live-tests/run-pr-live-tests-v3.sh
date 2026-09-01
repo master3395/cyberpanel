@@ -76,6 +76,27 @@ if response.status_code != 200:
 print('plugins/installed OK')
 " >>"$LOG" 2>&1 && pass "plugins/installed 200" || fail "plugins/installed"
 
+log "=== PLUGIN STORE ==="
+cd "$LIVE" && python3 manage.py shell -c "
+from django.test import RequestFactory
+from django.contrib.sessions.middleware import SessionMiddleware
+from loginSystem.models import Administrator
+from pluginHolder import views
+adm = Administrator.objects.first()
+if not adm: raise SystemExit('no admin')
+rf = RequestFactory()
+def go(path, view):
+    req = rf.get(path)
+    m = SessionMiddleware(lambda r: None); m.process_request(req); req.session.save()
+    req.session['userID'] = adm.pk; req.session.save()
+    r = view(req)
+    if r.status_code != 200: raise SystemExit('%s %s' % (path, r.status_code))
+go('/plugins/installed', views.installed)
+go('/plugins/help/', views.help_page)
+go('/plugins/api/store/plugins/', views.fetch_plugin_store)
+print('store OK')
+" >>"$LOG" 2>&1 && pass "plugin store routes" || fail "plugin store routes"
+
 cd "$LIVE" && python3 manage.py check >>"$LOG" 2>&1 && pass "manage.py check" || fail "manage.py check"
 log "Log: $LOG"
 exit $FAIL
