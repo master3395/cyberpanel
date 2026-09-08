@@ -215,8 +215,8 @@ class MailServerManager(multi.Thread):
                     numberofEmails = int(result[0])
                     duration = result[1]
                 except:
-                    numberofEmails = 0
-                    duration = '0m'
+                    numberofEmails = None
+                    duration = None
 
                 dic = {'id': count, 'email': items.email, 'DiskUsage': '%sMB' % items.DiskUsage, 'numberofEmails': numberofEmails, 'duration': duration}
                 count = count + 1
@@ -260,7 +260,9 @@ class MailServerManager(multi.Thread):
             else:
                 return ACLManager.loadErrorJson()
 
-            mailUtilities.deleteEmailAccount(email)
+            result = mailUtilities.deleteEmailAccount(email)
+            if result[0] != 1:
+                raise ValueError(result[1])
 
             if emailOwnerDomain.eusers_set.all().count() == 0:
                 emailOwnerDomain.delete()
