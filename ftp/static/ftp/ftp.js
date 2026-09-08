@@ -6,46 +6,45 @@
 /* Java script code to create account */
 app.controller('createFTPAccount', function ($scope, $http) {
 
-    // Initialize all ng-hide variables to hide alerts on page load
+    // Keep ftpDetails in sync for create/submit flows; visibility is gated by
+    // ng-show="ftpDomain" until a website option value is selected.
     $scope.ftpLoading = false;
     $scope.ftpDetails = true;
+    $scope.ftpDomain = '';
     $scope.canNotCreateFTP = true;
     $scope.successfullyCreatedFTP = true;
     $scope.couldNotConnect = true;
     $scope.generatedPasswordView = true;
 
-    $(document).ready(function () {
-        $( ".ftpDetails" ).hide();
-        $( ".ftpPasswordView" ).hide();
-        
-        // Check if select2 is available
-        if ($.fn.select2) {
-            $('.create-ftp-acct-select').select2();
-            
-            $('.create-ftp-acct-select').on('select2:select', function (e) {
-                var data = e.params.data;
-                $scope.ftpDomain = data.text;
-                $( ".ftpDetails" ).show();
-            });
-        } else {
-            // Fallback for regular select
-            $('.create-ftp-acct-select').on('change', function (e) {
-                $scope.ftpDomain = $(this).val();
-                $scope.$apply();
-                $( ".ftpDetails" ).show();
-            });
-        }
-    });
-    
-    $scope.showFTPDetails = function() {
-        if ($scope.ftpDomain && $scope.ftpDomain !== "") {
-            $(".ftpDetails").show();
+    $scope.showFTPDetails = function () {
+        var domain = $scope.ftpDomain || '';
+        if (domain !== '') {
             $scope.ftpDetails = false;
         } else {
-            $(".ftpDetails").hide();
             $scope.ftpDetails = true;
         }
     };
+
+    $(document).ready(function () {
+        function syncFtpDomainFromSelect() {
+            var selected = $('.create-ftp-acct-select').val() || '';
+            $scope.$applyAsync(function () {
+                $scope.ftpDomain = selected;
+                $scope.showFTPDetails();
+            });
+        }
+
+        if ($.fn.select2) {
+            $('.create-ftp-acct-select').select2();
+            $('.create-ftp-acct-select').on('select2:select select2:clear', function () {
+                syncFtpDomainFromSelect();
+            });
+        } else {
+            $('.create-ftp-acct-select').on('change', function () {
+                syncFtpDomainFromSelect();
+            });
+        }
+    });
 
     $scope.createFTPAccount = function () {
 

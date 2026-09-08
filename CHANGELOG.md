@@ -9,6 +9,13 @@ https://cyberpanel.net/KnowledgeBase/home/change-logs/
 Maintenance and security hardening for standalone webmail authentication,
 phpMyAdmin upgrade resilience, and MySQL Manager UI fixes.
 
+### FTP Create Account UI
+- Hide "FTP Account Details" until a website is selected on
+  `/ftp/createFTPAccount`. The served static `ftp.js` never initialized
+  `ftpDetails`, so `ng-hide` stayed inactive, and jQuery targeted a missing
+  `.ftpDetails` class. Details are now gated with `ng-show="ftpDomain"` and
+  Select2 updates the Angular model from the option value.
+
 ### phpMyAdmin upgrade resilience
 - Upgrade no longer blindly deletes a working `public/phpmyadmin` tree before
   download completes. The installer stages the zip, verifies required files
