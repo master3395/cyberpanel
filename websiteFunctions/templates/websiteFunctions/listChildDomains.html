@@ -571,6 +571,17 @@
             width: 100%;
         }
     }
+
+    /* Native select unclip: avoid vertical padding clipping labels */
+    select.form-control,
+    select.form-select,
+    select.pagination-select {
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 28px 0 12px !important;
+        line-height: 38px !important;
+        box-sizing: border-box !important;
+    }
 </style>
 
 <script>

@@ -96,6 +96,26 @@ class WebsiteManager:
     ols = 2
     lsws = 3
 
+
+    def _resourceSizeLabels(self, userID, disk_mb, disk_total, bw_mb, bw_total):
+        from plogical.humanSize import format_mb, format_quota_mb, get_admin_size_mode
+        from loginSystem.models import Administrator
+        mode = 'auto'
+        try:
+            if userID is not None:
+                mode = get_admin_size_mode(Administrator.objects.get(pk=userID))
+        except BaseException:
+            mode = 'auto'
+        return {
+            'diskUsedLabel': format_mb(disk_mb, mode),
+            'diskTotalLabel': format_quota_mb(disk_total, mode),
+            'bwUsedLabel': format_mb(bw_mb, mode),
+            'bwTotalLabel': format_quota_mb(bw_total, mode),
+            'sizeDisplayUnit': mode,
+            'diskUnlimited': format_quota_mb(disk_total, mode) == 'Unlimited',
+            'bwUnlimited': format_quota_mb(bw_total, mode) == 'Unlimited',
+        }
+
     def __init__(self, domain=None, childDomain=None):
         self.domain = domain
         self.childDomain = childDomain
@@ -2639,7 +2659,11 @@ Require valid-user
 
             # Calculate disk usage
             DiskUsage, DiskUsagePercentage, bwInMB, bwUsage = virtualHostUtilities.FindStats(website)
-            diskUsed = "%sMB" % str(DiskUsage)
+            try:
+                from plogical.humanSize import format_mb
+                diskUsed = format_mb(DiskUsage, 'auto')
+            except Exception:
+                diskUsed = "%sMB" % str(DiskUsage)
 
             # Convert numeric state to text
             state = "Active" if website.state == 1 else "Suspended"
@@ -5492,7 +5516,11 @@ StrictHostKeyChecking no
             except:
                 PHPVersionActual = 'PHP 8.1'
 
-            diskUsed = "%sMB" % str(DiskUsage)
+            try:
+                from plogical.humanSize import format_mb
+                diskUsed = format_mb(DiskUsage, 'auto')
+            except Exception:
+                diskUsed = "%sMB" % str(DiskUsage)
 
             # Get WordPress sites for this website
             wp_sites = []
@@ -5547,7 +5575,11 @@ StrictHostKeyChecking no
 
             DiskUsage, DiskUsagePercentage, bwInMB, bwUsage = virtualHostUtilities.FindStats(items)
 
-            diskUsed = "%sMB" % str(DiskUsage)
+            try:
+                from plogical.humanSize import format_mb
+                diskUsed = format_mb(DiskUsage, 'auto')
+            except Exception:
+                diskUsed = "%sMB" % str(DiskUsage)
 
             dic = {'domain': items.domain, 'adminEmail': items.adminEmail, 'ipAddress': ipAddress,
                    'admin': items.admin.userName, 'package': items.package.packageName, 'state': state,

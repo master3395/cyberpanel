@@ -216,6 +216,7 @@
             align-items: center;
             gap: 12px;
             min-width: 0;
+            flex: 1;
         }
         
         .chevron-btn {
@@ -247,6 +248,8 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            flex: 1;
+            min-width: 0;
         }
         
         /* SSL Status Badge */
@@ -704,10 +707,11 @@
                         </div>
                         <select ng-model="recordsToShow" 
                                 ng-change="getFurtherWebsitesFromDB()" 
-                                class="form-control form-select">
-                            <option>10</option>
-                            <option>50</option>
-                            <option>100</option>
+                                class="form-control form-select"
+                                aria-label="Records to show">
+                            <option ng-value="10">10</option>
+                            <option ng-value="50">50</option>
+                            <option ng-value="100">100</option>
                         </select>
                     </div>
                 </div>
@@ -718,10 +722,12 @@
                     <div class="cp-empty-nudge" ng-if="WebSitesList && WebSitesList.length === 0">
                         <div class="cp-empty-ic"><i class="fas fa-globe"></i></div>
                         <h3>{% trans "No websites yet" %}</h3>
-                        <p>{% trans "Create your first website to get started — or let our team build it for you." %}</p>
+                        <p>{% if not cosmetic.HidePromotions %}{% trans "Create your first website to get started, or let our team build it for you." %}{% else %}{% trans "Create your first website to get started." %}{% endif %}</p>
                         <div class="cp-empty-actions">
                             <a class="btn btn-primary" href="{% url 'createWebsite' %}"><i class="fas fa-plus"></i> {% trans "Create Website" %}</a>
+                            {% if not cosmetic.HidePromotions %}
                             <a class="cp-build-link" href="{% url 'buildServices' %}"><i class="fas fa-rocket"></i> {% trans "Let our team build it for you" %}</a>
+                            {% endif %}
                         </div>
                     </div>
                     <div ng-repeat="web in WebSitesList track by $index">
@@ -757,27 +763,6 @@
                                 <a href="/websites/{$ web.domain $}/workspace" class="btn btn-primary btn-sm" title="{% trans 'Open site workspace' %}">
                                     <i class="fas fa-grip"></i> Manage
                                 </a>
-                                <a href="/websites/{$ web.domain $}" class="btn btn-outline btn-sm" title="{% trans 'Full settings page' %}">
-                                    Settings
-                                </a>
-                                <a href="/filemanager/{$ web.domain $}" class="btn btn-outline btn-sm" title="{% trans 'File Manager' %}">
-                                    Filemanager
-                                </a>
-                                {% if admin or modifyWebsite %}
-                                <a href="{% url 'modifyWebsite' %}" class="btn btn-outline btn-sm" title="{% trans 'Modify website: package, owner, email & PHP' %}">
-                                    <i class="fas fa-pen-to-square"></i> {% trans "Modify" %}
-                                </a>
-                                {% endif %}
-                                {% if admin or suspendWebsite %}
-                                <a href="{% url 'siteState' %}" class="btn btn-outline btn-sm" title="{% trans 'Suspend / Unsuspend Website' %}">
-                                    <i class="fas fa-pause"></i> {% trans "Suspend" %}
-                                </a>
-                                {% endif %}
-                                {% if admin or deleteWebsite %}
-                                <a href="{% url 'deleteWebsite' %}" class="btn btn-outline-danger btn-sm" title="{% trans 'Delete Website' %}">
-                                    <i class="fas fa-trash"></i> {% trans "Delete" %}
-                                </a>
-                                {% endif %}
                             </div>
                         </div>
                         
@@ -803,6 +788,29 @@
                                                 ng-if="(web.wp_sites && web.wp_sites.length) > 0">
                                             {$ (web.wp_sites && web.wp_sites.length) || 0 $} WP Site<span ng-if="(web.wp_sites && web.wp_sites.length) != 1">s</span>
                                         </button>
+                                    </div>
+                                    <div class="screenshot-actions preview-row-actions" style="margin-top:10px; flex-wrap:wrap;">
+                                        <a href="/websites/{$ web.domain $}" class="btn btn-outline btn-sm" title="{% trans 'Full settings page' %}">
+                                            Settings
+                                        </a>
+                                        <a href="/filemanager/{$ web.domain $}" class="btn btn-outline btn-sm" title="{% trans 'File Manager' %}">
+                                            Filemanager
+                                        </a>
+                                        {% if admin or modifyWebsite %}
+                                        <a href="{% url 'modifyWebsite' %}" class="btn btn-outline btn-sm" title="{% trans 'Modify website: package, owner, email & PHP' %}">
+                                            <i class="fas fa-pen-to-square"></i> {% trans "Modify" %}
+                                        </a>
+                                        {% endif %}
+                                        {% if admin or suspendWebsite %}
+                                        <a href="{% url 'siteState' %}" class="btn btn-outline btn-sm" title="{% trans 'Suspend / Unsuspend Website' %}">
+                                            <i class="fas fa-pause"></i> {% trans "Suspend" %}
+                                        </a>
+                                        {% endif %}
+                                        {% if admin or deleteWebsite %}
+                                        <a href="{% url 'deleteWebsite' %}" class="btn btn-outline-danger btn-sm" title="{% trans 'Delete Website' %}">
+                                            <i class="fas fa-trash"></i> {% trans "Delete" %}
+                                        </a>
+                                        {% endif %}
                                     </div>
                                 </div>
                                 
@@ -937,8 +945,9 @@
                 <div class="pagination-section">
                     <select ng-model="currentPage" 
                             class="form-control pagination-select" 
-                            ng-change="getFurtherWebsitesFromDB()">
-                        <option ng-repeat="page in pagination" value="{$ $index + 1 $}">Page {$ $index + 1 $}</option>
+                            ng-change="getFurtherWebsitesFromDB()"
+                            aria-label="Current page">
+                        <option ng-repeat="page in pagination track by $index" ng-value="$index + 1">Page {$ $index + 1 $}</option>
                     </select>
                 </div>
             </div>
