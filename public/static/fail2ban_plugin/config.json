@@ -1,0 +1,18 @@
+{
+    "plugin_name": "fail2ban_plugin",
+    "version": "1.0.0",
+    "enabled": true,
+    "settings": {
+        "auto_ban": true,
+        "ban_duration": 3600,
+        "max_retries": 3,
+        "email_notifications": false,
+        "log_level": "INFO"
+    },
+    "jails": {
+        "sshd": true,
+        "apache-auth": true,
+        "apache-badbots": true,
+        "cyberpanel": true
+    }
+}

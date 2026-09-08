@@ -1144,6 +1144,126 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     // Security Analysis
     $scope.showAddonRequired = false;
     $scope.addonInfo = {};
+    $scope.blockingIP = null;
+    $scope.blockedIPs = {};
+
+    function notifyUser(title, text, type, delay) {
+        if (typeof PNotify !== 'undefined') {
+            new PNotify({
+                title: title,
+                text: text,
+                type: type || 'info',
+                delay: delay || 5000
+            });
+        }
+    }
+
+    function parseBanResponse(responseData) {
+        if (typeof responseData === 'string') {
+            try {
+                return JSON.parse(responseData);
+            } catch (e) {
+                return null;
+            }
+        }
+        return responseData;
+    }
+
+    function banIPAddress(ipAddress, reason, onSuccess) {
+        ipAddress = String(ipAddress || '').trim();
+        if (!ipAddress) {
+            notifyUser('Error', 'No IP address provided', 'error');
+            return;
+        }
+
+        var ipPattern = /^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/;
+        if (!ipPattern.test(ipAddress)) {
+            notifyUser('Error', 'Invalid IP address format: ' + ipAddress, 'error');
+            return;
+        }
+
+        if ($scope.blockingIP === ipAddress) {
+            return;
+        }
+
+        if ($scope.blockedIPs && $scope.blockedIPs[ipAddress]) {
+            notifyUser('Info', 'IP address ' + ipAddress + ' is already banned', 'info', 3000);
+            return;
+        }
+
+        $scope.blockingIP = ipAddress;
+
+        $http.post('/firewall/addBannedIP', {
+            ip: ipAddress,
+            reason: reason,
+            duration: 'permanent'
+        }, {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        }).then(function (response) {
+            $scope.blockingIP = null;
+            var responseData = parseBanResponse(response.data);
+
+            if (responseData && (responseData.status === 1 || responseData.status === '1')) {
+                if (!$scope.blockedIPs) {
+                    $scope.blockedIPs = {};
+                }
+                $scope.blockedIPs[ipAddress] = true;
+                notifyUser(
+                    'IP Address Banned',
+                    'IP address ' + ipAddress + ' has been permanently banned and added to the firewall.',
+                    'success'
+                );
+                if (typeof onSuccess === 'function') {
+                    onSuccess();
+                }
+            } else {
+                var errorMsg = 'Failed to block IP address';
+                if (responseData && responseData.error_message) {
+                    errorMsg = responseData.error_message;
+                } else if (responseData && responseData.error) {
+                    errorMsg = responseData.error;
+                } else if (responseData && responseData.message) {
+                    errorMsg = responseData.message;
+                }
+                notifyUser('Error', errorMsg, 'error');
+            }
+        }, function (err) {
+            $scope.blockingIP = null;
+            var errorMessage = 'Failed to block IP address';
+            var errData = err.data;
+            if (typeof errData === 'string') {
+                errData = parseBanResponse(errData);
+            }
+            if (errData && typeof errData === 'object') {
+                errorMessage = errData.error_message || errData.error || errData.message || errorMessage;
+            } else if (err.status) {
+                errorMessage = 'HTTP ' + err.status + ': ' + errorMessage;
+            }
+            notifyUser('Error', errorMessage, 'error');
+        });
+    }
+
+    $scope.blockIPAddress = function(ipAddress) {
+        banIPAddress(
+            ipAddress,
+            'Blocked from SSH Security Analysis on dashboard',
+            function () {
+                $scope.analyzeSSHSecurity();
+            }
+        );
+    };
+
+    $scope.banIPFromSSHLog = function(ipAddress) {
+        banIPAddress(
+            ipAddress,
+            'Suspicious activity detected from SSH logs',
+            function () {
+                $scope.refreshSSHLogs();
+            }
+        );
+    };
     
     $scope.analyzeSSHSecurity = function() {
         $scope.loadingSecurityAnalysis = true;

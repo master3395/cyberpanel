@@ -2749,24 +2749,42 @@ app.controller('listWebsites', function ($scope, $http, $window) {
     $scope.currentPage = 1;
     $scope.recordsToShow = 10;
 
+    function parseWebsiteListPayload(raw) {
+        if (Array.isArray(raw)) {
+            return raw;
+        }
+        if (typeof raw === 'string' && raw.length) {
+            return JSON.parse(raw);
+        }
+        return [];
+    }
+
     // Function to toggle site expansion
-    $scope.toggleSite = function(site) {
-        if (!$scope.expandedSites[site.domain]) {
-            $scope.expandedSites[site.domain] = true;
+    $scope.toggleSite = function(site, $event) {
+        if ($event && $event.stopPropagation) {
+            $event.stopPropagation();
+        }
+        if (!site || !site.domain) {
+            return;
+        }
+        var domain = site.domain;
+        if (!$scope.expandedSites[domain]) {
+            $scope.expandedSites[domain] = true;
             site.loading = true;
-            // You can add any data fetching logic here if needed
             setTimeout(function() {
                 site.loading = false;
-                $scope.$apply();
-            }, 500);
+                if (!$scope.$$phase) {
+                    $scope.$apply();
+                }
+            }, 300);
         } else {
-            $scope.expandedSites[site.domain] = false;
+            $scope.expandedSites[domain] = false;
         }
     };
 
     // Function to check if site is expanded
     $scope.isExpanded = function(siteId) {
-        return $scope.expandedSites[siteId];
+        return !!$scope.expandedSites[siteId];
     };
 
     // Function to check if site data is loaded
@@ -2824,7 +2842,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
 
         $http.post(dataurl, data, config).then(function(response) {
             if (response.data.listWebSiteStatus === 1) {
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $("#listFail").hide();
                 // Expand the first site by default
@@ -6076,24 +6094,42 @@ app.controller('listWebsites', function ($scope, $http, $window) {
     $scope.currentPage = 1;
     $scope.recordsToShow = 10;
 
+    function parseWebsiteListPayload(raw) {
+        if (Array.isArray(raw)) {
+            return raw;
+        }
+        if (typeof raw === 'string' && raw.length) {
+            return JSON.parse(raw);
+        }
+        return [];
+    }
+
     // Function to toggle site expansion
-    $scope.toggleSite = function(site) {
-        if (!$scope.expandedSites[site.domain]) {
-            $scope.expandedSites[site.domain] = true;
+    $scope.toggleSite = function(site, $event) {
+        if ($event && $event.stopPropagation) {
+            $event.stopPropagation();
+        }
+        if (!site || !site.domain) {
+            return;
+        }
+        var domain = site.domain;
+        if (!$scope.expandedSites[domain]) {
+            $scope.expandedSites[domain] = true;
             site.loading = true;
-            // You can add any data fetching logic here if needed
             setTimeout(function() {
                 site.loading = false;
-                $scope.$apply();
-            }, 500);
+                if (!$scope.$$phase) {
+                    $scope.$apply();
+                }
+            }, 300);
         } else {
-            $scope.expandedSites[site.domain] = false;
+            $scope.expandedSites[domain] = false;
         }
     };
 
     // Function to check if site is expanded
     $scope.isExpanded = function(siteId) {
-        return $scope.expandedSites[siteId];
+        return !!$scope.expandedSites[siteId];
     };
 
     // Function to check if site data is loaded
@@ -6151,7 +6187,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
 
         $http.post(dataurl, data, config).then(function(response) {
             if (response.data.listWebSiteStatus === 1) {
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $("#listFail").hide();
                 // Expand the first site by default
@@ -6714,7 +6750,7 @@ app.controller('listChildDomainsMain', function ($scope, $http, $timeout) {
         function ListInitialData(response) {
             if (response.data.listWebSiteStatus === 1) {
 
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $scope.clients = JSON.parse(response.data.data);
                 $("#listFail").hide();
@@ -9747,24 +9783,42 @@ app.controller('listWebsites', function ($scope, $http, $window) {
     $scope.currentPage = 1;
     $scope.recordsToShow = 10;
 
+    function parseWebsiteListPayload(raw) {
+        if (Array.isArray(raw)) {
+            return raw;
+        }
+        if (typeof raw === 'string' && raw.length) {
+            return JSON.parse(raw);
+        }
+        return [];
+    }
+
     // Function to toggle site expansion
-    $scope.toggleSite = function(site) {
-        if (!$scope.expandedSites[site.domain]) {
-            $scope.expandedSites[site.domain] = true;
+    $scope.toggleSite = function(site, $event) {
+        if ($event && $event.stopPropagation) {
+            $event.stopPropagation();
+        }
+        if (!site || !site.domain) {
+            return;
+        }
+        var domain = site.domain;
+        if (!$scope.expandedSites[domain]) {
+            $scope.expandedSites[domain] = true;
             site.loading = true;
-            // You can add any data fetching logic here if needed
             setTimeout(function() {
                 site.loading = false;
-                $scope.$apply();
-            }, 500);
+                if (!$scope.$$phase) {
+                    $scope.$apply();
+                }
+            }, 300);
         } else {
-            $scope.expandedSites[site.domain] = false;
+            $scope.expandedSites[domain] = false;
         }
     };
 
     // Function to check if site is expanded
     $scope.isExpanded = function(siteId) {
-        return $scope.expandedSites[siteId];
+        return !!$scope.expandedSites[siteId];
     };
 
     // Function to check if site data is loaded
@@ -9822,7 +9876,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
 
         $http.post(dataurl, data, config).then(function(response) {
             if (response.data.listWebSiteStatus === 1) {
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $("#listFail").hide();
                 // Expand the first site by default
@@ -10317,7 +10371,7 @@ app.controller('listChildDomainsMain', function ($scope, $http, $timeout) {
         function ListInitialData(response) {
             if (response.data.listWebSiteStatus === 1) {
 
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $scope.clients = JSON.parse(response.data.data);
                 $("#listFail").hide();
@@ -17871,7 +17925,7 @@ app.controller('listDockersite', function ($scope, $http) {
             $scope.cyberPanelLoading = false;
             if (response.data.listWebSiteStatus === 1) {
 
-                $scope.WebSitesList = JSON.parse(response.data.data);
+                $scope.WebSitesList = parseWebsiteListPayload(response.data.data);
                 $scope.pagination = response.data.pagination;
                 $scope.clients = JSON.parse(response.data.data);
                 $("#listFail").hide();

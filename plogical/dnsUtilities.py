@@ -21,11 +21,34 @@ except:
 
 import CloudFlare
 from plogical.processUtilities import ProcessUtilities
+import re
 
 
 class DNS:
 
     VALID_CF_AUTH_TYPES = ('global_key', 'api_token')
+    # Cloudflare Global API Keys are a fixed 37-char hex string.
+    _CF_GLOBAL_KEY_RE = re.compile(r'^[0-9a-fA-F]{37}$')
+
+    @staticmethod
+    def inferCloudFlareAuthType(email, api_secret):
+        """
+        Infer auth mode for legacy 3-line credential files.
+
+        Older CyberPanel used CloudFlare(email=..., token=secret). After auth_type
+        was added, legacy files with an email + API token were incorrectly treated
+        as Global API Key auth and Cloudflare returned "Invalid request headers".
+        """
+        email = (email or '').strip()
+        api_secret = (api_secret or '').strip()
+        if not api_secret:
+            return 'api_token'
+        if email.lower() in ('api_token', 'token', 'none', 'n/a') or '@' not in email:
+            return 'api_token'
+        if DNS._CF_GLOBAL_KEY_RE.match(api_secret):
+            return 'global_key'
+        # Email present but secret is not a Global API Key → treat as API Token.
+        return 'api_token'
 
     @staticmethod
     def createCloudFlareClient(email, api_secret, auth_type=None):
@@ -36,15 +59,12 @@ class DNS:
         auth_type = (auth_type or '').strip().lower()
         if not api_secret:
             raise ValueError('Cloudflare API key or token is not configured')
+        if auth_type not in DNS.VALID_CF_AUTH_TYPES:
+            auth_type = DNS.inferCloudFlareAuthType(email, api_secret)
         if auth_type == 'api_token':
             return CloudFlare.CloudFlare(token=api_secret)
-        if auth_type == 'global_key':
-            if not email or '@' not in email:
-                raise ValueError('Cloudflare account email is required for Global API Key auth')
-            return CloudFlare.CloudFlare(email=email, key=api_secret)
-        # Legacy 3-line files without auth_type: infer only when unambiguous
-        if email.lower() in ('api_token', 'token', 'none', 'n/a') or '@' not in email:
-            return CloudFlare.CloudFlare(token=api_secret)
+        if not email or '@' not in email:
+            raise ValueError('Cloudflare account email is required for Global API Key auth')
         return CloudFlare.CloudFlare(email=email, key=api_secret)
 
     nsd_base = "/etc/nsd/nsd.conf"
@@ -86,10 +106,21 @@ class DNS:
                 self.key = data[2]
                 self.status = data[3]
             else:
-                self.auth_type = ''
                 self.email = data[0] if len(data) > 0 else ''
                 self.key = data[1] if len(data) > 1 else ''
                 self.status = data[2] if len(data) > 2 else 'Disable'
+                self.auth_type = DNS.inferCloudFlareAuthType(self.email, self.key)
+                # Upgrade legacy 3-line files so UI/saves keep the correct auth mode.
+                try:
+                    with open(cfFile, 'w') as handle:
+                        handle.write('%s\n%s\n%s\n%s\n' % (
+                            self.auth_type, self.email, self.key, self.status
+                        ))
+                    os.chmod(cfFile, 0o600)
+                except OSError as error:
+                    logging.CyberCPLogFileWriter.writeToFile(
+                        'Unable to upgrade CloudFlare credential file %s: %s' % (cfFile, str(error))
+                    )
             return 1
         else:
             #logging.CyberCPLogFileWriter.writeToFile('User %s does not have CloudFlare configured.' % (self.admin.userName))

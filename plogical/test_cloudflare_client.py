@@ -16,8 +16,19 @@ class CloudFlareClientTests(unittest.TestCase):
             DNS.createCloudFlareClient('', 'key', 'global_key')
 
     def test_invalid_auth_type_falls_back(self):
-        cf = DNS.createCloudFlareClient('a@b.com', 'secret', 'bogus')
+        cf = DNS.createCloudFlareClient('a@b.com', 'secret_not_a_global_key', 'bogus')
         self.assertIsNotNone(cf)
+
+    def test_infer_api_token_when_email_present_but_secret_is_token(self):
+        # Regression: legacy 3-line files with email + API token must not use Global Key headers.
+        auth = DNS.inferCloudFlareAuthType('user@example.com', 'cfu' + ('x' * 50))
+        self.assertEqual(auth, 'api_token')
+        cf = DNS.createCloudFlareClient('user@example.com', 'cfu' + ('x' * 50), None)
+        self.assertIsNotNone(cf)
+
+    def test_infer_global_key_for_37_hex(self):
+        secret = 'a' * 37
+        self.assertEqual(DNS.inferCloudFlareAuthType('user@example.com', secret), 'global_key')
 
 if __name__ == '__main__':
     unittest.main()

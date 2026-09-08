@@ -33,11 +33,21 @@ class DNSManager:
         self.extraArgs = extraArgs
 
     def loadCFKeys(self):
-        cfFile = '%s%s' % (DNS.CFPath, self.admin.userName)
-        data = open(cfFile, 'r').readlines()
-        self.email = data[0].rstrip('\n')
-        self.key = data[1].rstrip('\n')
-
+        """Load CloudFlare credentials via shared DNS helper (supports auth_type)."""
+        helper = DNS()
+        helper.admin = self.admin
+        loaded = helper.loadCFKeys()
+        if not loaded:
+            self.auth_type = ''
+            self.email = ''
+            self.key = ''
+            self.status = 'Disable'
+            return 0
+        self.auth_type = getattr(helper, 'auth_type', '') or DNS.inferCloudFlareAuthType(helper.email, helper.key)
+        self.email = helper.email
+        self.key = helper.key
+        self.status = helper.status
+        return 1
     def loadDNSHome(self, request = None, userID = None):
         admin = Administrator.objects.get(pk=userID)
         template = 'dns/index.html'
@@ -660,10 +670,17 @@ class DNSManager:
             domainsList = ACLManager.findAllDomains(currentACL, userID)
             self.admin = admin
             self.loadCFKeys()
-            data = {"domainsList": domainsList, "status": status, 'CloudFlare': CloudFlare, 'cfEmail': self.email,
-                    'cfToken': self.key}
+            data = {
+                "domainsList": domainsList,
+                "status": status,
+                'CloudFlare': CloudFlare,
+                'cfEmail': self.email,
+                'cfToken': self.key,
+                'cfAuthType': getattr(self, 'auth_type', '') or DNS.inferCloudFlareAuthType(self.email, self.key),
+                'cfSync': self.status,
+            }
         else:
-            data = {"status": status, 'CloudFlare': CloudFlare}
+            data = {"status": status, 'CloudFlare': CloudFlare, 'cfAuthType': 'api_token'}
 
         template = 'dns/addDeleteDNSRecordsCloudFlare.html'
         proc = httpProc(request, template, data, 'addDeleteRecords')
@@ -684,9 +701,9 @@ class DNSManager:
             cfPath = '%s%s' % (DNS.CFPath, admin.userName)
 
             writeToFile = open(cfPath, 'w')
-            cfAuthType = data.get('cfAuthType', 'global_key')
+            cfAuthType = data.get('cfAuthType', 'api_token')
             if cfAuthType not in DNS.VALID_CF_AUTH_TYPES:
-                cfAuthType = 'global_key'
+                cfAuthType = DNS.inferCloudFlareAuthType(cfEmail, cfToken)
             writeToFile.write('%s\n%s\n%s\n%s' % (cfAuthType, cfEmail, cfToken, cfSync))
             writeToFile.close()
 

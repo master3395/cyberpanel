@@ -1,0 +1,4 @@
+Fixed 2026-09-04: /websites/newstargeted.com returned HTTP 500 because
+plogical/machine_ip.py was missing (ModuleNotFoundError in ACLManager.GetServerIP).
+Restored /usr/local/CyberCP/plogical/machine_ip.py and restarted lscpd/lsws.
+Verified via Django client and browser: page title "newstargeted.com - CyberPanel".

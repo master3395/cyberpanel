@@ -489,9 +489,9 @@
                                             <label class="form-label">{% trans "CloudFlare Email" %}</label>
                                             <div class="form-group">
                                             <label>Authentication type</label>
-                                            <select name="cfAuthType" class="form-control" ng-model="cfAuthType">
+                                            <select name="cfAuthType" class="form-control" ng-model="cfAuthType" ng-init="cfAuthType=cfAuthType || 'api_token'">
+                                                <option value="api_token">API Token (recommended)</option>
                                                 <option value="global_key">Global API Key (email + key)</option>
-                                                <option value="api_token">API Token (token only)</option>
                                             </select>
                                         </div>
                                         <input name="cfEmail" type="email" class="form-control" ng-model="cfEmail" 
@@ -881,17 +881,27 @@
                                     <div class="row">
                                         <div class="col-md-8">
                                             <div class="form-group">
+                                                <label class="form-label">{% trans "Authentication type" %}</label>
+                                                <select name="cfAuthType" class="form-control"
+                                                        ng-init="cfAuthType='{{ cfAuthType|default:'api_token' }}'"
+                                                        ng-model="cfAuthType">
+                                                    <option value="api_token">{% trans "API Token (recommended)" %}</option>
+                                                    <option value="global_key">{% trans "Global API Key (email + key)" %}</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
                                                 <label class="form-label">{% trans "CloudFlare Email" %}</label>
-                                                <input ng-init="cfAuthType='{{ cfAuthType|default:'global_key' }}';cfEmail='{{ cfEmail }}'" name="cfEmail" type="email" 
+                                                <input ng-init="cfEmail='{{ cfEmail }}';cfSync='{{ cfSync|default:'Enable' }}'" name="cfEmail" type="email" 
                                                        class="form-control" ng-model="cfEmail" 
                                                        placeholder="your@email.com" required>
                                             </div>
                                             
                                             <div class="form-group">
-                                                <label class="form-label">{% trans "API Token" %}</label>
+                                                <label class="form-label">{% trans "API Token / Global API Key" %}</label>
                                                 <input ng-init="cfToken='{{ cfToken }}'" name="cfToken" type="text" 
                                                        class="form-control" ng-model="cfToken" 
-                                                       placeholder="Enter your CloudFlare API token" required>
+                                                       placeholder="Enter your CloudFlare API token or Global API Key" required>
                                             </div>
                                             
                                             <div class="form-group">

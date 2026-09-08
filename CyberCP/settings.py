@@ -11,18 +11,15 @@ https://docs.djangoproject.com/en/1.11/ref/settings/
 """
 
 import os
-import sys
 from django.utils.translation import gettext_lazy as _
 
-# Patreon OAuth (optional): for paid-plugin verification via Patreon membership.
-# Set these only if you use Patreon-gated plugins; leave unset otherwise.
-# Use environment variables; no defaults so the repo stays generic and safe to push to GitHub.
-PATREON_CLIENT_ID = os.environ.get('PATREON_CLIENT_ID', '')
-PATREON_CLIENT_SECRET = os.environ.get('PATREON_CLIENT_SECRET', '')
-PATREON_CREATOR_ID = os.environ.get('PATREON_CREATOR_ID', '')
-PATREON_MEMBERSHIP_TIER_ID = os.environ.get('PATREON_MEMBERSHIP_TIER_ID', '')
-PATREON_CREATOR_ACCESS_TOKEN = os.environ.get('PATREON_CREATOR_ACCESS_TOKEN', '')
-PATREON_CREATOR_REFRESH_TOKEN = os.environ.get('PATREON_CREATOR_REFRESH_TOKEN', '')
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv not available, continue without it
+    pass
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -61,41 +58,11 @@ if not SECRET_KEY:
             # Could not persist (e.g. permissions); use the in-memory key for now.
             pass
 
-
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = ['*']
-
-# When the panel is behind a reverse proxy (e.g. https://panel.example.com -> http://backend:port),
-# the browser sends Origin/Referer with the public domain while the proxy may send Host as the
-# backend address. Django then fails CSRF (Referer vs Host mismatch) and POSTs get 403.
-# Set CSRF_TRUSTED_ORIGINS to your public origin(s) so CSRF passes. Optional; leave unset if
-# you access the panel by IP:port only.
-# Example: export CSRF_TRUSTED_ORIGINS="https://panel.example.com,http://panel.example.com"
-_csrf_origins_env = os.environ.get('CSRF_TRUSTED_ORIGINS', '')
-_csrf_origins_list = [o.strip() for o in _csrf_origins_env.split(',') if o.strip()]
-# Add default trusted origins for common CyberPanel domains
-_default_origins = [
-    'https://cyberpanel.newstargeted.com',
-    'http://cyberpanel.newstargeted.com',
-]
-# Merge environment and default origins, avoiding duplicates
-CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(_csrf_origins_list + _default_origins))
-
-# Optional file: one trusted origin per line (e.g. https://203.0.113.1:2087) for IP:port panel access.
-# Create /etc/cyberpanel/csrf_trusted_origins on the server if JSON POSTs get 403 CSRF when using HTTPS by IP.
-_csrf_trusted_origins_file = '/etc/cyberpanel/csrf_trusted_origins'
-if os.path.isfile(_csrf_trusted_origins_file):
-    try:
-        with open(_csrf_trusted_origins_file, 'r', encoding='utf-8', errors='replace') as _csrf_f:
-            for _csrf_line in _csrf_f:
-                _csrf_line = _csrf_line.strip()
-                if _csrf_line and not _csrf_line.startswith('#'):
-                    if _csrf_line not in CSRF_TRUSTED_ORIGINS:
-                        CSRF_TRUSTED_ORIGINS.append(_csrf_line)
-    except OSError:
-        pass
+# Allow configuration via environment variable, with wildcard fallback for universal compatibility
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 
 # Do not share Django's generic cookie name with other applications that may
 # be served from the same panel hostname.
@@ -110,56 +77,42 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    # Core apps (no dependencies on other custom apps)
-    'loginSystem',  # Base app - many apps depend on Administrator model
-    'packages',     # websiteFunctions depends on this
-
-    # Apps with single dependency
-    'websiteFunctions',  # Depends on packages and loginSystem
-    'baseTemplate',      # Depends on loginSystem
-    'userManagment',     # Depends on loginSystem
-    'dns',               # Depends on loginSystem
-
-    # Apps depending on websiteFunctions
-    'databases',         # Depends on websiteFunctions
-    'ftp',              # Depends on websiteFunctions
-    'filemanager',      # Depends on websiteFunctions
-    'mailServer',       # Depends on websiteFunctions, ChildDomains
-
-    # Apps with multiple or complex dependencies
-    'emailPremium',
-    # Optional plugins (e.g. emailMarketing, discordWebhooks) - install via Plugin Store
-    # from https://github.com/master3395/cyberpanel-plugins - plugin installer adds them
-    'cloudAPI',         # Depends on websiteFunctions
-    'containerization', # Depends on websiteFunctions
-    'IncBackups',      # Depends on websiteFunctions and loginSystem
-    'CLManager',       # Depends on packages
-
-    # Apps with dependencies on loginSystem only
-    's3Backups',       # Depends on loginSystem
-    'dockerManager',   # Depends on loginSystem
-    'aiScanner',       # Depends on loginSystem
-
-    # Independent apps (no model dependencies found)
+    'baseTemplate',
     'firewall',
+    'loginSystem',
+    'packages',
+    'websiteFunctions',
     'tuning',
     'serverStatus',
+    'dns',
+    'ftp',
+    'userManagment',
+    'databases',
+    'mailServer',
     'serverLogs',
     'backup',
     'managePHP',
     'manageSSL',
     'api',
+    'filemanager',
     'manageServices',
     'pluginHolder',
+    'autoBanSecurityAlerts',
+    'fail2ban',
+    'emailPremium',
+    'emailMarketing',
+    'cloudAPI',
     'highAvailability',
+    's3Backups',
+    'dockerManager',
+    'containerization',
+    'CLManager',
+    'IncBackups',
+    'aiScanner',
     'webmail',
     'emailDelivery',
     #    'WebTerminal'
 ]
-
-# Add plugins that are installed (plugin installer handles adding/removing)
-# Plugins are added by plugin installer when plugins are installed
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -189,10 +142,10 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'baseTemplate.context_processors.version_context',
                 'baseTemplate.context_processors.cosmetic_context',
-                'baseTemplate.context_processors.notification_preferences_context',
-                'baseTemplate.context_processors.firewall_static_context',
-                'baseTemplate.context_processors.dns_static_context',
                 'baseTemplate.context_processors.plugin_sidebar_context',
+                'baseTemplate.context_processors.dns_static_context',
+                'baseTemplate.context_processors.firewall_static_context',
+                'baseTemplate.context_processors.notification_preferences_context',
             ],
         },
     },
@@ -202,39 +155,24 @@ WSGI_APPLICATION = 'CyberCP.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
-# Prefer password from /etc/cyberpanel/mysqlPassword so panel stays in sync with CLI/install scripts.
-# Do not ship a default password. If env vars and password files are missing, DB access should fail closed.
-_def_mysql_pass = ''
-_def_mysql_root_pass = ''
-try:
-    _mysql_pass_file = '/etc/cyberpanel/mysqlPassword'
-    if os.path.exists(_mysql_pass_file):
-        with open(_mysql_pass_file, 'r') as _f:
-            _def_mysql_pass = (_f.read() or '').strip() or _def_mysql_pass
 
-    _mysql_root_pass_file = '/etc/cyberpanel/mysqlRootPassword'
-    if os.path.exists(_mysql_root_pass_file):
-        with open(_mysql_root_pass_file, 'r') as _f:
-            _def_mysql_root_pass = (_f.read() or '').strip() or _def_mysql_root_pass
-except Exception:
-    pass
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('DB_NAME', 'cyberpanel'),
-        'USER': os.getenv('DB_USER', 'cyberpanel'),
-        'PASSWORD': os.getenv('DB_PASSWORD', _def_mysql_pass),
-        'HOST': os.getenv('DB_HOST', 'localhost'),
-        'PORT': os.getenv('DB_PORT', '3306'),
+        'NAME': 'cyberpanel',
+        'USER': 'cyberpanel',
+        'PASSWORD': '1XTy1XOV0BZPnM',
+        'HOST': 'localhost',
+        'PORT':''
     },
     'rootdb': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('ROOT_DB_NAME', 'mysql'),
-        'USER': os.getenv('ROOT_DB_USER', 'root'),
-        'PASSWORD': os.getenv('ROOT_DB_PASSWORD', _def_mysql_root_pass or _def_mysql_pass),
-        'HOST': os.getenv('ROOT_DB_HOST', 'localhost'),
-        'PORT': os.getenv('ROOT_DB_PORT', '3306'),
+        'NAME': 'mysql',
+        'USER': 'root',
+        'PASSWORD': '1XTy1XOV0BZPnM',
+        'HOST': 'localhost',
+        'PORT': '',
     },
 }
 DATABASE_ROUTERS = ['backup.backupRouter.backupRouter']
@@ -277,12 +215,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, "static/")
 
 STATIC_URL = '/static/'
 
+PUBLIC_ROOT = os.path.join(BASE_DIR, 'public')
+
 # Keep collected assets readable by LSCPD even if an upgrade is interrupted
 # before the final permission repair runs.
 FILE_UPLOAD_PERMISSIONS = 0o644
 FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o755
-# Panel public directory (SnappyMail, phpMyadmin, etc.)
-PUBLIC_ROOT = os.path.join(BASE_DIR, 'public')
 
 LOCALE_PATHS = (
     os.path.join(BASE_DIR, 'locale'),
@@ -316,11 +254,9 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 2147483648
 # Security settings
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Login URL - CyberPanel uses root path for login
 LOGIN_URL = '/'
 LOGIN_REDIRECT_URL = '/'
 
-# Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Sync INSTALLED_APPS with plugins on disk so /plugins/<name>/ and /plugins/<name>/settings/ work.

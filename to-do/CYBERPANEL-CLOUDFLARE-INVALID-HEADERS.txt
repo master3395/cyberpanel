@@ -1,0 +1,13 @@
+Fixed 2026-09-04: CloudFlare DNS page "Invalid request headers"
+
+Root cause:
+1) Legacy 3-line CF credential files stored email + API token, but
+   createCloudFlareClient treated them as Global API Key (email+key headers).
+2) dns/dnsManager.py loadCFKeys() still used the old 3-line parser and ignored
+   auth_type, so after upgrading files to api_token it mis-read fields.
+
+Fix:
+- Infer api_token vs global_key for legacy files (37-hex = global key).
+- Auto-upgrade credential files to 4-line format with auth_type.
+- DNSManager.loadCFKeys delegates to DNS.loadCFKeys.
+- API Settings UI shows Authentication type; default save = api_token.

@@ -741,7 +741,7 @@ app.controller('addModifyDNSRecordsCloudFlare', function ($scope, $http, $window
         url = "/dns/saveCFConfigs";
 
         var data = {
-            cfAuthType: $scope.cfAuthType || 'global_key',
+            cfAuthType: $scope.cfAuthType || 'api_token',
             cfEmail: $scope.cfEmail,
             cfToken: $scope.cfToken,
             cfSync: $scope.cfSync,

@@ -1518,103 +1518,136 @@ LogFile /var/log/clamav/clamav.log
 
 
 
+    MICROSOFT_TRANSPORT_REGEXP = '/etc/postfix/microsoft_transport.regexp'
+    HYBRID_RELAY_MARKER = '# CyberMail Hybrid Relay Configuration\n'
+    FULL_RELAY_MARKER = '# CyberMail SMTP Relay Configuration\n'
+
     @staticmethod
-    def configureRelayHost(smtpHost, smtpPort, smtpUser, smtpPassword):
+    def _hybridTransportRegexpContent(smtpHost, smtpPort):
+        nexthop = 'smtp:[%s]:%s' % (smtpHost, smtpPort)
+        return (
+            '# Hybrid CyberMail relay: domains that reject Contabo IP (S3150 / NOWL)\n'
+            '/^.*@hotmail\\./                    %s\n'
+            '/^.*@outlook\\./                   %s\n'
+            '/^.*@live\\./                      %s\n'
+            '/^.*@msn\\.com$/                   %s\n'
+            '/^.*@passport\\.com$/              %s\n'
+            '/^.*@windowslive\\.com$/          %s\n'
+            '/^.*@t-online\\.de$/               %s\n'
+            '/^.*@t-online\\.com$/              %s\n'
+            '/^.*@telekom\\.de$/                %s\n'
+        ) % ((nexthop,) * 9)
+
+    @staticmethod
+    def _stripCyberMailRelayMainCfLines(lines):
+        relayKeys = [
+            'relayhost', 'smtp_sasl_auth_enable', 'smtp_sasl_password_maps',
+            'smtp_sasl_security_options', 'transport_maps', 'smtp_tls_security_level',
+        ]
+        markers = (
+            '# CyberMail Hybrid Relay Configuration',
+            '# CyberMail SMTP Relay Configuration',
+            '# CyberMail relay: local OpenDKIM',
+        )
+        filtered = []
+        for line in lines:
+            stripped = line.strip()
+            if any(stripped.startswith(m) for m in markers):
+                continue
+            skip = False
+            for key in relayKeys:
+                if stripped.startswith(key + ' ') or stripped.startswith(key + '='):
+                    skip = True
+                    break
+            if not skip:
+                filtered.append(line)
+        return filtered
+
+    @staticmethod
+    def configureHybridRelayHost(smtpHost, smtpPort, smtpUser, smtpPassword):
+        """Route blocked providers via CyberMail; everything else sends direct."""
         try:
-            ## Ensure cyrus-sasl-plain is installed (required for SASL PLAIN auth on RHEL/Alma/CentOS)
             if os.path.exists('/etc/redhat-release'):
                 ProcessUtilities.executioner('dnf install -y cyrus-sasl-plain')
             elif os.path.exists('/usr/bin/apt-get'):
                 ProcessUtilities.executioner('apt-get install -y libsasl2-modules')
 
             postfixPath = '/etc/postfix/main.cf'
-
             with open(postfixPath, 'r') as f:
                 lines = f.readlines()
 
-            relayKeys = ['relayhost', 'smtp_sasl_auth_enable', 'smtp_sasl_password_maps',
-                         'smtp_sasl_security_options', 'smtp_tls_security_level']
-
-            filteredLines = []
-            for line in lines:
-                stripped = line.strip()
-                skip = False
-                for key in relayKeys:
-                    if stripped.startswith(key + ' ') or stripped.startswith(key + '='):
-                        skip = True
-                        break
-                if not skip:
-                    filteredLines.append(line)
-
-            relayConfig = [
-                '\n# CyberMail SMTP Relay Configuration\n',
-                'relayhost = [%s]:%s\n' % (smtpHost, smtpPort),
+            filteredLines = mailUtilities._stripCyberMailRelayMainCfLines(lines)
+            hybridConfig = [
+                '\n' + mailUtilities.HYBRID_RELAY_MARKER,
+                'transport_maps = hash:/etc/postfix/transport, regexp:%s\n' % (
+                    mailUtilities.MICROSOFT_TRANSPORT_REGEXP
+                ),
                 'smtp_sasl_auth_enable = yes\n',
                 'smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd\n',
                 'smtp_sasl_security_options = noanonymous\n',
-                'smtp_tls_security_level = encrypt\n',
+                'smtp_tls_security_level = may\n',
             ]
 
             with open(postfixPath, 'w') as f:
                 f.writelines(filteredLines)
-                f.writelines(relayConfig)
+                f.writelines(hybridConfig)
+
+            with open(mailUtilities.MICROSOFT_TRANSPORT_REGEXP, 'w') as f:
+                f.write(mailUtilities._hybridTransportRegexpContent(smtpHost, smtpPort))
 
             saslPath = '/etc/postfix/sasl_passwd'
             with open(saslPath, 'w') as f:
                 f.write('[%s]:%s %s:%s\n' % (smtpHost, smtpPort, smtpUser, smtpPassword))
-
             os.chmod(saslPath, 0o600)
-
             ProcessUtilities.executioner('postmap /etc/postfix/sasl_passwd')
+            ProcessUtilities.executioner('postfix check')
             ProcessUtilities.executioner('systemctl reload postfix')
-
             print('1,None')
 
         except BaseException as msg:
-            logging.CyberCPLogFileWriter.writeToFile(str(msg) + ' [configureRelayHost]')
+            logging.CyberCPLogFileWriter.writeToFile(str(msg) + ' [configureHybridRelayHost]')
             print('0,%s' % str(msg))
+
+    @staticmethod
+    def configureRelayHost(smtpHost, smtpPort, smtpUser, smtpPassword):
+        """Enable CyberMail hybrid relay (Microsoft + t-online and similar)."""
+        mailUtilities.configureHybridRelayHost(smtpHost, smtpPort, smtpUser, smtpPassword)
 
     @staticmethod
     def removeRelayHost():
         try:
             postfixPath = '/etc/postfix/main.cf'
-
             with open(postfixPath, 'r') as f:
                 lines = f.readlines()
 
-            relayKeys = ['relayhost', 'smtp_sasl_auth_enable', 'smtp_sasl_password_maps',
-                         'smtp_sasl_security_options']
-            commentLine = '# CyberMail SMTP Relay Configuration\n'
-
-            filteredLines = []
-            for line in lines:
-                stripped = line.strip()
-                if line == commentLine:
-                    continue
-                skip = False
-                for key in relayKeys:
-                    if stripped.startswith(key + ' ') or stripped.startswith(key + '='):
-                        skip = True
-                        break
-                if not skip:
-                    if stripped.startswith('smtp_tls_security_level'):
-                        filteredLines.append('smtp_tls_security_level = may\n')
-                    else:
-                        filteredLines.append(line)
+            filteredLines = mailUtilities._stripCyberMailRelayMainCfLines(lines)
+            hasTlsLevel = False
+            finalLines = []
+            for line in filteredLines:
+                if line.strip().startswith('smtp_tls_security_level'):
+                    finalLines.append('smtp_tls_security_level = may\n')
+                    hasTlsLevel = True
+                else:
+                    finalLines.append(line)
+            if not hasTlsLevel:
+                finalLines.append('smtp_tls_security_level = may\n')
 
             with open(postfixPath, 'w') as f:
-                f.writelines(filteredLines)
+                f.writelines(finalLines)
+
+            regexpPath = mailUtilities.MICROSOFT_TRANSPORT_REGEXP
+            if os.path.exists(regexpPath):
+                os.remove(regexpPath)
 
             saslPath = '/etc/postfix/sasl_passwd'
             saslDbPath = '/etc/postfix/sasl_passwd.db'
-
             if os.path.exists(saslPath):
                 os.remove(saslPath)
             if os.path.exists(saslDbPath):
                 os.remove(saslDbPath)
 
+            ProcessUtilities.executioner('postfix check')
             ProcessUtilities.executioner('systemctl reload postfix')
-
             print('1,None')
 
         except BaseException as msg:
