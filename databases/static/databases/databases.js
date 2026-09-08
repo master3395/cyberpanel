@@ -679,10 +679,13 @@ app.controller('phpMyAdmin', function ($scope, $http, $window) {
 
 app.controller('Mysqlmanager', function ($scope, $http, $compile, $window, $timeout) {
     $scope.cyberPanelLoading = false;
-    $scope.mysql_status = 'test'
+    $scope.mysql_status = 'test';
+    $scope.uptime = '-';
+    $scope.connections = '-';
+    $scope.Slow_queries = '-';
+    $scope.processes = [];
 
-
-    $scope.getstatus = function () {
+    $scope.getstatus = function (silent) {
 
         $scope.cyberPanelLoading = true;
 
@@ -706,14 +709,19 @@ app.controller('Mysqlmanager', function ($scope, $http, $compile, $window, $time
                 $scope.uptime = response.data.uptime;
                 $scope.connections = response.data.connections;
                 $scope.Slow_queries = response.data.Slow_queries;
-                $scope.processes = JSON.parse(response.data.processes);
-                $timeout($scope.showStatus, 3000);
+                try {
+                    $scope.processes = JSON.parse(response.data.processes);
+                } catch (e) {
+                    $scope.processes = response.data.processes || [];
+                }
 
-                new PNotify({
-                    title: 'Success',
-                    text: 'Successfully Fetched',
-                    type: 'success'
-                });
+                if (!silent) {
+                    new PNotify({
+                        title: 'Success',
+                        text: 'Successfully Fetched',
+                        type: 'success'
+                    });
+                }
             } else {
                 new PNotify({
                     title: 'Error!',
@@ -733,9 +741,20 @@ app.controller('Mysqlmanager', function ($scope, $http, $compile, $window, $time
             });
         }
 
-    }
+    };
 
-    $scope.getstatus();
+    $scope.refreshProcesses = function () {
+        var icon = document.querySelector('.refresh-btn i');
+        if (icon) {
+            icon.style.animation = 'spin 1s linear';
+            setTimeout(function () {
+                icon.style.animation = '';
+            }, 1000);
+        }
+        $scope.getstatus(true);
+    };
+
+    $scope.getstatus(true);
 });
 
 
