@@ -9,6 +9,12 @@ https://cyberpanel.net/KnowledgeBase/home/change-logs/
 Maintenance and security hardening for standalone webmail authentication,
 phpMyAdmin upgrade resilience, and MySQL Manager UI fixes.
 
+### Website settings and File Manager routing
+- Restore `/websites/<domain>/settings` before the child-domain catch-all so
+  master sites open Full Settings instead of the false
+  "This child domain does not exists" error.
+- Map bare `/filemanager/` to the Root File Manager view (was Django 404).
+
 ### SSH Trusted IPs auto-seed
 - Ensure the server public IPv4 is added to Trusted IPs on list load and on
   successful admin login (label: `Server IP`). Existing entries are never wiped.
