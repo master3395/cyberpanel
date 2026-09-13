@@ -27,4 +27,8 @@ urlpatterns = [
     re_path(r'^getTopProcesses$', views.getTopProcesses, name='getTopProcesses'),
     re_path(r'^analyzeSSHSecurity$', views.analyzeSSHSecurity, name='analyzeSSHSecurity'),
     re_path(r'^blockIPAddress$', views.blockIPAddress, name='blockIPAddress'),
+    re_path(r'^sshSecurityWhitelistList$', views.sshSecurityWhitelistList, name='sshSecurityWhitelistList'),
+    re_path(r'^sshSecurityWhitelistAdd$', views.sshSecurityWhitelistAdd, name='sshSecurityWhitelistAdd'),
+    re_path(r'^sshSecurityWhitelistRemove$', views.sshSecurityWhitelistRemove, name='sshSecurityWhitelistRemove'),
+    re_path(r'^sshSecurityWhitelistUpdate$', views.sshSecurityWhitelistUpdate, name='sshSecurityWhitelistUpdate'),
 ]
