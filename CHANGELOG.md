@@ -9,6 +9,19 @@ https://cyberpanel.net/KnowledgeBase/home/change-logs/
 Maintenance and security hardening for standalone webmail authentication,
 phpMyAdmin upgrade resilience, and MySQL Manager UI fixes.
 
+### Firewall UI (full tabs restored)
+- Restored the full `/firewall/` UI from `v2.5.5-dev`: tabs for Firewall Rules,
+  Banned IPs, and SSH Trusted IPs, plus pagination, reorder, and export/import.
+- Synced served `static/firewall/firewall.js` and `public/static/firewall/firewall.js`
+  with the source `firewall/static/firewall/firewall.js` (cache-buster bumped to `-3`).
+- Ported Trusted IPs APIs (`sshSecurityWhitelist*`) and
+  `plogical/sshSecurityWhitelistUtilities.py` without replacing live
+  `firewallManager.py`.
+- Removed the discontinued CSF tile from the Security Functions index.
+- Restored missing Auto Ban merge helpers on `FirewallManager.getBannedIPs`
+  (`_merge_autoban_security_alerts_logs` and related helpers) so the Banned IPs
+  tab loads without AttributeError.
+
 ### FTP Create Account UI
 - Hide "FTP Account Details" until a website is selected on
   `/ftp/createFTPAccount`. The served static `ftp.js` never initialized
