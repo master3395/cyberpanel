@@ -202,6 +202,10 @@ urlpatterns = [
     # Single-site workspace hub (must precede the domain catch-alls)
     path('<domain>/workspace', views.siteWorkspace, name='siteWorkspace'),
 
+    # Full settings alias (must precede /<childDomain> catch-all; otherwise
+    # "settings" is treated as a child domain name)
+    path('<domain>/settings', views.domain, name='domainSettings'),
+
     # Catch all for domains
     path('<domain>/<childDomain>', views.launchChild, name='launchChild'),
     path('<domain>', views.domain, name='domain'),
