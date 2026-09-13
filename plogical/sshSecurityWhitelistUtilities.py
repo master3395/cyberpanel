@@ -17,8 +17,8 @@ from typing import Any, Dict, List, Optional, Set
 WHITELIST_PATH = '/usr/local/CyberCP/data/ssh_security_whitelist.json'
 PUBLIC_IP_CACHE_PATH = '/usr/local/CyberCP/data/ssh_whitelist_public_ipv4.cache.json'
 FIRST_ADMIN_LOGIN_FLAG_PATH = '/usr/local/CyberCP/data/ssh_whitelist_first_admin_login.recorded'
-LABEL_SERVER_AUTO = 'CyberPanel server public IPv4 (auto)'
-LABEL_FIRST_ADMIN_AUTO = 'First CyberPanel admin login (auto)'
+LABEL_SERVER_AUTO = 'Server IP'
+LABEL_FIRST_ADMIN_AUTO = 'First admin login'
 
 
 class SSHSecurityWhitelistUtilities:
@@ -225,16 +225,32 @@ class SSHSecurityWhitelistUtilities:
 
     @staticmethod
     def client_ip_from_request(request: Any) -> str:
-        """Best-effort client IP for whitelisting (CF header or REMOTE_ADDR)."""
+        """Best-effort client IP for whitelisting (CF / XFF / X-Real-IP / REMOTE_ADDR)."""
         if request is None:
             return ''
         try:
             meta = getattr(request, 'META', None) or {}
-            raw = meta.get('HTTP_CF_CONNECTING_IP') or meta.get('REMOTE_ADDR') or ''
-            raw = str(raw).split(',')[0].strip()
-            if '%' in raw:
-                raw = raw.split('%')[0]
-            return raw
+            candidates = []
+            for key in (
+                'HTTP_CF_CONNECTING_IP',
+                'HTTP_X_REAL_IP',
+                'HTTP_X_FORWARDED_FOR',
+                'REMOTE_ADDR',
+            ):
+                raw = meta.get(key) or ''
+                if not raw:
+                    continue
+                # X-Forwarded-For may be a comma-separated list; take left-most hop.
+                for part in str(raw).split(','):
+                    part = part.strip()
+                    if '%' in part:
+                        part = part.split('%', 1)[0]
+                    if part:
+                        candidates.append(part)
+            for cand in candidates:
+                if SSHSecurityWhitelistUtilities.validate_ip(cand):
+                    return cand
+            return candidates[0] if candidates else ''
         except Exception:
             return ''
 
@@ -276,6 +292,46 @@ class SSHSecurityWhitelistUtilities:
         return ''
 
     @staticmethod
+    def _detect_local_public_ipv4() -> str:
+        """
+        Best-effort primary public IPv4 from local routing/interfaces when HTTP
+        self-lookup is unavailable. Skips private/loopback addresses.
+        """
+        import re
+        import subprocess
+
+        candidates = []
+        try:
+            out = subprocess.check_output(
+                ['ip', '-4', 'route', 'get', '1.1.1.1'],
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                universal_newlines=True,
+            )
+            m = re.search(r'\bsrc\s+(\d{1,3}(?:\.\d{1,3}){3})\b', out or '')
+            if m:
+                candidates.append(m.group(1))
+        except Exception:
+            pass
+        try:
+            out = subprocess.check_output(
+                ['hostname', '-I'],
+                stderr=subprocess.DEVNULL,
+                timeout=5,
+                universal_newlines=True,
+            )
+            for tok in (out or '').split():
+                if re.match(r'^(\d{1,3}\.){3}\d{1,3}$', tok):
+                    candidates.append(tok)
+        except Exception:
+            pass
+        for ip in candidates:
+            v = SSHSecurityWhitelistUtilities.validate_ip(ip)
+            if v:
+                return v
+        return ''
+
+    @staticmethod
     def ensure_cyberpanel_public_ip_whitelisted(max_cache_age: int = 3600) -> None:
         """
         Ensure this machine's outbound/public IPv4 is on the whitelist (SSH + ban protection).
@@ -303,6 +359,8 @@ class SSHSecurityWhitelistUtilities:
             ip_to_try = cached_ip
         else:
             detected = SSHSecurityWhitelistUtilities._fetch_ipv4_public_ip()
+            if not detected:
+                detected = SSHSecurityWhitelistUtilities._detect_local_public_ipv4()
             if detected:
                 ip_to_try = detected
                 try:
@@ -314,6 +372,14 @@ class SSHSecurityWhitelistUtilities:
                     try:
                         os.chmod(PUBLIC_IP_CACHE_PATH, 0o640)
                     except OSError:
+                        pass
+                    try:
+                        import pwd
+                        import grp
+                        uid = pwd.getpwnam('cyberpanel').pw_uid
+                        gid = grp.getgrnam('cyberpanel').gr_gid
+                        os.chown(PUBLIC_IP_CACHE_PATH, uid, gid)
+                    except (OSError, KeyError, ImportError):
                         pass
                 except OSError:
                     pass

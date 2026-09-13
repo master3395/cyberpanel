@@ -143,6 +143,11 @@ def verifyLogin(request):
                 # Persist before the browser follows the login response with a
                 # dashboard request.  This is important with multiple workers.
                 request.session.save()
+                try:
+                    from plogical.sshSecurityWhitelistUtilities import SSHSecurityWhitelistUtilities
+                    SSHSecurityWhitelistUtilities.on_successful_panel_login(request, admin)
+                except Exception:
+                    pass
                 data = {'userID': admin.pk, 'loginStatus': 1, 'error_message': "None"}
                 json_data = json.dumps(data)
                 response.write(json_data)

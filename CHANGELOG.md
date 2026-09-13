@@ -9,6 +9,15 @@ https://cyberpanel.net/KnowledgeBase/home/change-logs/
 Maintenance and security hardening for standalone webmail authentication,
 phpMyAdmin upgrade resilience, and MySQL Manager UI fixes.
 
+### SSH Trusted IPs auto-seed
+- Ensure the server public IPv4 is added to Trusted IPs on list load and on
+  successful admin login (label: `Server IP`). Existing entries are never wiped.
+- Once per install, record the first admin public client IP (label:
+  `First admin login`) from login or the first Trusted IPs list request.
+- Restored the login hook in `loginSystem/views.py` that was missing after the
+  firewall UI port; list API now calls `ensure_cyberpanel_public_ip_whitelisted`
+  so upgrades are not stuck on an empty list.
+
 ### Firewall UI (full tabs restored)
 - Restored the full `/firewall/` UI from `v2.5.5-dev`: tabs for Firewall Rules,
   Banned IPs, and SSH Trusted IPs, plus pagination, reorder, and export/import.
