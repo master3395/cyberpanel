@@ -1573,6 +1573,17 @@ def sshSecurityWhitelistList(request):
         if err:
             return err
         from plogical.sshSecurityWhitelistUtilities import SSHSecurityWhitelistUtilities
+        # Seed server public IP (and first-admin client IP once) for upgrades /
+        # installs that never ran the login hook. Does not overwrite existing rows.
+        try:
+            SSHSecurityWhitelistUtilities.ensure_cyberpanel_public_ip_whitelisted()
+        except Exception:
+            pass
+        try:
+            client_ip = SSHSecurityWhitelistUtilities.client_ip_from_request(request)
+            SSHSecurityWhitelistUtilities.maybe_whitelist_first_admin_login(client_ip)
+        except Exception:
+            pass
         entries = SSHSecurityWhitelistUtilities.load_entries()
         return HttpResponse(
             json.dumps({'status': 1, 'entries': entries}, ensure_ascii=False),
