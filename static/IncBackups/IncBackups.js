@@ -2,6 +2,8 @@
 
 app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
 
+    // cyberpanelLoading matches createBackup.html (true = Creating..., false = Create Backup).
+    // Do not reuse the legacy ng-hide polarity where true meant idle.
     $scope.destination = true;
     $scope.backupButton = true;
     $scope.cyberpanelLoading = false;
@@ -10,10 +12,15 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
 
 
     $scope.fetchDetails = function () {
-        getBackupStatus();
+        // Only poll when this session already started a job (tempPath set).
+        // Polling without tempPath can flip loading state and leave the button stuck.
+        if ($scope.tempPath) {
+            getBackupStatus();
+        }
         $scope.populateCurrentRecords();
         $scope.destination = false;
         $scope.runningBackup = true;
+        $scope.cyberpanelLoading = false;
     };
 
     function getBackupStatus() {
@@ -57,6 +64,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
                     $scope.destination = true;
                     $scope.backupButton = true;
                     $scope.runningBackup = false;
+                    $scope.cyberpanelLoading = true;
 
                     $scope.fileName = response.data.fileName;
                     $scope.status = response.data.status;
@@ -73,12 +81,14 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
         }
 
         function cantLoadInitialDatas(response) {
+            $scope.cyberpanelLoading = false;
         }
 
     }
 
     $scope.destinationSelection = function () {
         $scope.backupButton = false;
+        $scope.cyberpanelLoading = false;
     };
 
     $scope.populateCurrentRecords = function () {
@@ -126,7 +136,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
 
         $scope.status = '';
 
-        $scope.cyberpanelLoading = false;
+        $scope.cyberpanelLoading = true;
 
 
         url = "/IncrementalBackups/submitBackupCreation";
@@ -168,6 +178,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
         }
 
         function cantLoadInitialDatas(response) {
+            $scope.cyberpanelLoading = false;
         }
 
     };
@@ -274,7 +285,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
 
     $scope.restore = function (id) {
 
-        $scope.cyberpanelLoading = false;
+        $scope.cyberpanelLoading = true;
 
 
         url = "/IncrementalBackups/fetchRestorePoints";
@@ -309,7 +320,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
         }
 
         function cantLoadInitialDatas(response) {
-            $scope.cyberpanelLoading = true;
+            $scope.cyberpanelLoading = false;
             new PNotify({
                 title: 'Operation Failed!',
                 text: 'Could not connect to server, please refresh this page',
@@ -323,7 +334,7 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
 
         $scope.status = '';
 
-        $scope.cyberpanelLoading = false;
+        $scope.cyberpanelLoading = true;
         $scope.restoreSt = false;
 
 
@@ -351,11 +362,14 @@ app.controller('createIncrementalBackups', function ($scope, $http, $timeout) {
             if (response.data.status === 1) {
                 $scope.tempPath = response.data.tempPath;
                 getBackupStatus();
+            } else {
+                $scope.cyberpanelLoading = false;
             }
 
         }
 
         function cantLoadInitialDatas(response) {
+            $scope.cyberpanelLoading = false;
         }
 
     };
